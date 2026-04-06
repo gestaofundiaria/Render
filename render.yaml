@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: gestao-fundiaria
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m waitress --listen=0.0.0.0:$PORT app:app
+    healthCheckPath: /api/session
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: GESTORES_COOKIE_SECURE
+        value: true
+      - key: GESTORES_SECRET_KEY
+        generateValue: true

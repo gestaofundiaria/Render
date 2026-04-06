@@ -1,0 +1,3465 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gestão Fundiária</title>
+    <link rel="icon" type="image/png" href="Logo.png" sizes="32x32">
+    <link rel="shortcut icon" type="image/png" href="Logo.png">
+    <link rel="preload" as="image" href="login-bg.png">
+    <script>
+        (function() {
+            function aplicarFaviconSemDistorcao(src) {
+                var img = new Image();
+                img.onload = function() {
+                    var size = 64;
+                    var canvas = document.createElement('canvas');
+                    canvas.width = size;
+                    canvas.height = size;
+                    var ctx = canvas.getContext('2d');
+                    if (!ctx) return;
+
+                    var escala = Math.min(size / img.width, size / img.height);
+                    var w = img.width * escala;
+                    var h = img.height * escala;
+                    var x = (size - w) / 2;
+                    var y = (size - h) / 2;
+
+                    ctx.clearRect(0, 0, size, size);
+                    ctx.drawImage(img, x, y, w, h);
+
+                    var dataUrl = canvas.toDataURL('image/png');
+                    var link = document.querySelector('link[rel="icon"]') || document.createElement('link');
+                    link.rel = 'icon';
+                    link.type = 'image/png';
+                    link.href = dataUrl;
+                    if (!link.parentNode) {
+                        document.head.appendChild(link);
+                    }
+                };
+                img.src = src;
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    aplicarFaviconSemDistorcao('Logo.png');
+                });
+            } else {
+                aplicarFaviconSemDistorcao('Logo.png');
+            }
+        })();
+    </script>
+
+    <!-- GeoPackage -->
+    <script src="https://unpkg.com/@ngageoint/leaflet-geopackage@2.0.5/dist/leaflet-geopackage.min.js"></script>
+
+    <meta charset="utf-8" />
+
+    <!-- Fonte (COM BLACK 900) -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;900&display=swap" rel="stylesheet">
+
+    <!-- FontAwesome para ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+    <style>
+        * {
+            font-family: 'Poppins', sans-serif;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            font-family: 'Poppins', sans-serif;
+            overflow: hidden;
+        }
+
+        .leaflet-container,
+        .leaflet-control,
+        .leaflet-popup-content-wrapper,
+        .leaflet-popup-content,
+        .leaflet-tooltip,
+        .leaflet-control-attribution,
+        .leaflet-control-layers,
+        .leaflet-bar a,
+        .leaflet-container a {
+            font-family: 'Poppins', sans-serif !important;
+        }
+
+        .leaflet-interactive {
+            transition: stroke 0.92s ease, stroke-width 0.92s ease, fill 0.92s ease, fill-opacity 0.42s ease, opacity 0.42s ease, filter 0.42s ease;
+        }
+
+        .leaflet-interactive.imovel-hover {
+            filter: drop-shadow(0 0 8px rgba(135, 189, 10, 0.647));
+        }
+
+       #login {
+    display: flex;
+    height: 100dvh;
+    min-height: 100vh;
+    justify-content: center;
+    align-items: center;
+    color: #1f2c0f;
+    background-color: #1f2c0f;
+    font-family: 'Poppins';
+    position: relative;
+    overflow: hidden;
+    padding: 24px;
+    box-sizing: border-box;
+    opacity: 1;
+}
+
+#login::before {
+    content: '';
+    position: absolute;
+    inset: -24px;
+    background-image: url('login-bg.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: blur(18px) saturate(0.9);
+    transform: scale(1.08);
+    z-index: 0;
+}
+
+#login::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(24, 37, 17, 0.56), rgba(24, 37, 17, 0.4));
+    z-index: 1;
+}
+
+#login .login-box {
+    position: relative;
+    z-index: 2;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+#login.carregando .login-box {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+    pointer-events: none;
+}
+
+#login.carregando .login-brand {
+    opacity: 0.82;
+}
+
+#login-carregando {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    color: #f5f9f2;
+    text-transform: uppercase;
+    letter-spacing: 0.01px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: 'Poppins';
+}
+
+#login.carregando #login-carregando {
+    display: flex;
+}
+
+.loading-spinner {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: 4px solid rgba(240, 248, 233, 0.25);
+    border-top-color: #d8ebb6;
+    animation: girarLoading 0.9s linear infinite;
+}
+
+@keyframes girarLoading {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.brand-logo {
+    display: block;
+    object-fit: contain;
+}
+
+.login-brand {
+    position: absolute;
+    right: 18px;
+    bottom: 18px;
+    z-index: 3;
+}
+
+.login-brand .brand-logo {
+    width: 180px;
+    height: auto;
+}
+
+.login-box {
+    background: #344436;
+    border: 1.6px solid rgba(255, 255, 255, 0.305);
+    padding: 36px 32px;
+    border-radius: 20px;
+    width: min(430px, calc(100vw - 48px));
+    min-height: 480px;
+    height: auto;
+    text-align: center;
+    font-family: 'Poppins';
+    position: relative;
+    box-sizing: border-box;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* centraliza os elementos */
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    transition: opacity 420ms ease, transform 520ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.login-box h1 {
+    color: #ffffff;
+    font-size: 36px;
+    font-weight: 500;
+    margin: 20px 0 6px 0;
+}
+
+.title-with-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.title-with-icon i {
+    color: inherit;
+    font-size: 0.9em;
+}
+
+.title-icon-image {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    display: block;
+    flex-shrink: 0;
+    filter: brightness(0) invert(1);
+}
+
+.login-box .title-icon-image {
+    width: 32px;
+    height: 32px;
+}
+
+.map-header .title-icon-image {
+    width: 30px;
+    height: 30px;
+}
+
+.login-box h3 {
+    color: #ffffff;
+    margin: 0 0 48px 0;
+    font-weight: 400;
+}
+
+/* 👇 ALTERAÇÃO AQUI */
+.login-box label {
+    width: 80%;           /* mesma largura dos inputs */
+    text-align: left;     /* texto à esquerda */
+    margin-bottom: 5px;
+    color: #ffffff;
+    font-weight: 400;
+    font-family: 'Poppins';
+}
+
+/* 👇 ALTERAÇÃO AQUI */
+.login-box input {
+    width: 80%;           /* centralizado visualmente */
+    padding: 10px;
+    margin-bottom: 35px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    font-family: 'Poppins';
+}
+
+.login-box input::placeholder {
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.password-wrap {
+    width: 80%;
+    position: relative;
+    margin-bottom: 35px;
+}
+
+.password-wrap input {
+    width: 100%;
+    margin-bottom: 0;
+    padding-right: 46px;
+    box-sizing: border-box;
+}
+
+.password-toggle {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    color: rgba(255, 255, 255, 0.82);
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 18px !important;
+    height: 18px !important;
+    min-width: 0;
+    border-radius: 0 !important;
+    transition: color 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
+}
+
+.password-toggle:hover,
+.password-toggle:focus,
+.password-toggle:active {
+    color: #ffffff;
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.password-toggle i {
+    pointer-events: none;
+    display: inline-block;
+    transition: transform 0.22s ease, opacity 0.22s ease;
+}
+
+.password-toggle.is-active i {
+    transform: scale(0.9);
+    opacity: 0.75;
+}
+
+.login-status {
+    width: 80%;
+    min-height: 20px;
+    margin: -18px 0 18px 0;
+    color: #ffd6d6;
+    font-size: 13px;
+    line-height: 1.4;
+    text-align: center;
+}
+
+.login-box input:disabled,
+.login-box button:disabled {
+    opacity: 0.72;
+    cursor: not-allowed;
+}
+
+        
+
+        .login-box button {
+            width: 60%;
+            padding: 12px;
+            background-color: rgba(255, 255, 255, 0.16);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.46);
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: 'Poppins';
+        }
+
+        .login-box button:hover {
+            background-color: rgba(168, 205, 105, 0.32);
+        }
+
+        #mapa-container {
+            display: none;
+            position: relative;
+            width: 100vw;
+            width: 100dvw;
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+            flex-direction: column;
+        }
+
+        #map {
+            flex: 1 1 auto;
+            min-height: 0;
+            width: 100%;
+        }
+
+        .map-header {
+            background-color: #1f2c0f;
+            color: white;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+            box-sizing: border-box;
+        }
+
+        .map-header-left {
+            display: flex;
+            align-items: center;
+            gap: 25px;
+            min-width: 0;
+        }
+
+        .map-brand {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            margin-left: auto;
+        }
+
+        .map-brand .brand-logo {
+            width: 150px;
+            height: auto;
+        }
+
+        .map-header h2 {
+            margin: 0;
+            font-size: 25px;
+            font-weight: 500;
+            
+        }
+
+        .map-search {
+            display: flex;
+            align-items: center;
+            gap: 40px;
+            min-width: 340px;
+            max-width: 460px;
+            width: auto;
+            margin-left: 24px;
+            margin-right: 24px;
+            flex: 1 1 360px;
+        }
+
+        .map-search-input-wrap {
+            position: relative;
+            flex: 0 0 290px;
+        }
+
+        .map-search input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #c8d2cb;
+            border-radius: 8px;
+            font-family: 'Poppins';
+            font-size: 13px;
+            outline: none;
+            gap: 30px
+            ;
+        }
+
+        .map-search-results {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            border: 1px solid #d6dfd8;
+            border-radius: 8px;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+            margin: 0;
+            padding: 4px 0;
+            list-style: none;
+            max-height: 260px;
+            overflow-y: auto;
+            z-index: 1500;
+            display: none;
+            opacity: 0;
+            transform: translateY(-6px) scale(0.98);
+            transform-origin: top center;
+            transition: opacity 0.2s ease, transform 0.22s ease;
+        }
+
+        .map-search-results.show {
+            display: block;
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            animation: searchResultsFadeIn 0.2s ease;
+        }
+
+        @keyframes searchResultsFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-8px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .map-search-results li {
+            padding: 10px 12px;
+            font-size: 13px;
+            color: #1f2c0f;
+            cursor: pointer;
+            border-bottom: 1px solid #eff3ee;
+        }
+
+        .map-search-result-name {
+            display: block;
+            font-weight: 600;
+            color: #1f2c0f;
+            margin-bottom: 2px;
+        }
+
+        .map-search-result-meta {
+            display: block;
+            font-size: 12px;
+            color: #6b7c6d;
+        }
+
+        .map-search-results li:last-child {
+            border-bottom: none;
+        }
+
+        .map-search-results li:hover {
+            background: #eef6e5;
+        }
+
+        .map-search button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            background: #a8cd69;
+            color: #1f2c0f;
+            font-family: 'Poppins';
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .map-search button:hover {
+            background: #9ac159;
+        }
+
+
+        .layer-group-title {
+            font-size: 15px;
+            font-weight: 400;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            color: #d8e6dc;
+            margin: 6px 0 4px;
+        }
+
+        /* Controle de camadas (Leaflet) com visual alinhado ao tema */
+        .leaflet-control-layers {
+            border: 1px solid rgba(255, 255, 255, 0.18) !important;
+            border-radius: 12px !important;
+            background: #1f2c0f !important;
+            color: #ffffff;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25) !important;
+            overflow: hidden;
+            transform-origin: top right;
+            transition: transform 0.22s ease, opacity 0.22s ease, box-shadow 0.22s ease;
+        }
+
+        .leaflet-control-layers:not(.leaflet-control-layers-expanded) {
+            transform: scale(0.98);
+            opacity: 0.92;
+        }
+
+        .leaflet-control-layers.leaflet-control-layers-expanded {
+            transform: scale(1);
+            opacity: 1;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3) !important;
+        }
+
+        .leaflet-control-layers-toggle {
+            width: 60px !important;
+            height: 60px !important;
+            background-color: #1f2c0f !important;
+            background-size: 24px 24px !important;
+            background-repeat: no-repeat !important;
+            background-position: center !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%239AC159' d='M12 3 2 8l10 5 10-5-10-5Zm-8 8.8v3.4l8 4 8-4v-3.4l-8 4-8-4Zm0 5v3.4l8 4 8-4v-3.4l-8 4-8-4Z'/%3E%3C/svg%3E") !important;
+        }
+
+        .leaflet-control-layers-expanded {
+            padding: 20px 20px !important;
+            min-width: 190px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 13px;
+            color: #ffffff;
+            background: #1f2c0f !important;
+            animation: layersOpen 0.22s ease;
+        }
+
+        @keyframes layersOpen {
+            from {
+                opacity: 0;
+                transform: translateY(-6px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .leaflet-control-layers-list label {
+            margin: 6px 0;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .leaflet-control-layers-separator {
+            border-top: 1px solid rgba(255, 255, 255, 0.2) !important;
+            margin: 8px 0 !important;
+        }
+
+        .leaflet-control-layers input[type="radio"],
+        .leaflet-control-layers input[type="checkbox"] {
+            accent-color: #a8cd69;
+        }
+
+        /* Painel dentro do mapa */
+        #painel {
+            position: absolute;
+            top: 110px;
+            left: 15px;
+            width: 430px;
+            max-height: calc(100dvh - 140px);
+            overflow-y: auto;
+            background: #f7f9fb;
+            border: 1px solid #dce4e8;
+            border-radius: 14px;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+            z-index: 1000;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateY(-20px) scale(0.95);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        #painel.ativo {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0) scale(1);
+            pointer-events: auto;
+        }
+
+        #painel.inativo {
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-20px) scale(0.95);
+            pointer-events: none;
+        }
+
+        #title-imovel {
+            padding: 14px 16px;
+            font-size: 18px;
+            font-weight: 400;
+            color: #0f412b;
+            background: #ffffff;
+            border-bottom: 1px solid #e7ecef;
+            margin: 0 0 6px;
+        }
+
+        #painel h2 {
+            margin-top: 0;
+            padding: 12px 16px;
+            background-color: #1f2c0f;
+            color: #fff;
+            font-size: 20px;
+            font-weight: 600;
+            border-top-left-radius: 14px;
+            border-top-right-radius: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #conteudo {
+            padding: 0;
+            color: #333;
+            font-family: 'Poppins';
+        }
+
+        .section-header {
+            background: #fff;
+            border-bottom: 1px solid #e8ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            cursor: pointer;
+        }
+
+        .section-header h3 {
+            margin: 0;
+            font-size: 13px;
+            font-weight: 400;
+            color: #1f2c0f;
+        }
+
+        .section-header span {
+            font-size: 12px;
+            color: #7a8c99;
+        }
+
+        .section-content {
+            background: #fff;
+            color: #2d3b45;
+            padding: 12px 16px;
+            font-size: 14px;
+            line-height: 1.5;
+            max-height: 520px;
+            opacity: 1;
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.25s ease, padding 0.25s ease;
+        }
+
+        .section-content p {
+            margin: 0;
+        }
+
+        .section-content.hidden {
+            max-height: 0;
+            opacity: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+
+        .painel-actions {
+            display: flex;
+            gap: 10px;
+            padding: 14px 16px 16px;
+            background: #ffffff;
+            border-top: 1px solid #e7ecef;
+            position: sticky;
+            bottom: 0;
+            z-index: 2;
+        }
+
+        .painel-actions button,
+        .painel-actions a.painel-btn {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        #btn-gerar-relatorio {
+            background-color: #1f2c0f;
+            border-color: #1f2c0f;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(31, 44, 15, 0.24);
+        }
+
+        #btn-gerar-relatorio:hover {
+            background-color: #2b3b16;
+            border-color: #2b3b16;
+            transform: translateY(-1px);
+        }
+
+        #btn-fechar-painel {
+            background: #f6f8f7;
+            border-color: #dbe4dd;
+            color: #1f2c0f;
+        }
+
+        #btn-fechar-painel:hover {
+            background: #eef3ef;
+            border-color: #c9d6cc;
+        }
+
+        #btn-whatsapp {
+            background: #b8edcc;
+            border: 1.5px solid #25D366;
+            color: #0e5c28;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            font-weight: 600;
+        }
+
+        #btn-whatsapp:hover {
+            background: #93e1b0;
+            border-color: #1aab52;
+            color: #0a3f1c;
+            transform: translateY(-1px);
+        }
+
+        #btn-whatsapp svg {
+            flex-shrink: 0;
+        }
+
+        /* Estilos para abas */
+        .section-block {
+            margin: 0;
+            border-bottom: 1px solid #e7ecef;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #ffffff;
+            border-bottom: 1px solid #e7ecef;
+            padding: 10px 14px;
+            cursor: pointer;
+            font-weight: 400;
+            color: #1f2c0f;
+        }
+
+        .section-header div:first-child {
+            font-size: 14px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #405816;
+        }
+
+        .toggle-icon {
+            font-size: 12px;
+            color: #66757f;
+            user-select: none;
+            transform: rotate(0deg);
+            transition: transform 0.2s;
+        }
+
+        .section-header.open .toggle-icon {
+            transform: rotate(90deg);
+        }
+
+        .section-content {
+            background: #fff;
+            padding: 12px 14px;
+            color: #2f3d49;
+            font-size: 14px;
+            line-height: 1.5;
+            max-height: 520px;
+            opacity: 1;
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.25s ease, padding 0.25s ease;
+        }
+
+        .section-content.hidden {
+            max-height: 0;
+            opacity: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+
+        .section-content-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #ebeff2;
+        }
+
+        .section-content-item:last-child {
+            border-bottom: none;
+        }
+
+        .section-content-item i {
+            width: 20px;
+            color: #66757f;
+            margin-right: 10px;
+            font-size: 14px;
+        }
+
+        .section-content-text {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            align-items: center;
+        }
+
+        .section-content-label {
+            color: #66757f;
+            font-size: 13px;
+            font-weight: 400;
+            text-transform: capitalize;
+        }
+
+        .section-content-value {
+            color: #1f2a37;
+            font-weight: 400;
+            text-align: right;
+            margin-left: 10px;
+        }
+
+        @media (max-width: 900px) {
+            #login {
+                padding: 16px;
+            }
+
+            .login-box {
+                width: min(100%, 420px);
+                min-height: 0;
+                padding: 22px 18px;
+            }
+
+            .map-header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+            }
+
+            .map-header-left {
+                justify-content: space-between;
+            }
+
+            .map-search {
+                min-width: 0;
+                width: 100%;
+                max-width: none;
+                margin: 0;
+                gap: 10px;
+                flex: 1 1 auto;
+            }
+
+            .map-search-input-wrap {
+                flex: 1 1 auto;
+            }
+
+            .map-brand {
+                margin-left: 0;
+                justify-content: flex-start;
+            }
+
+            #painel {
+                top: 132px;
+                left: 12px;
+                right: 12px;
+                width: auto;
+                max-height: calc(100dvh - 156px);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .login-box h1 {
+                font-size: 30px;
+            }
+
+            .login-box h3 {
+                margin-bottom: 28px;
+            }
+
+            .login-box label,
+            .login-box input,
+            .login-box button {
+                width: 100%;
+            }
+
+            .map-header {
+                padding: 12px;
+            }
+
+            .map-header h2 {
+                font-size: 21px;
+            }
+
+            .map-search {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .map-search-input-wrap {
+                flex: 1 1 auto;
+            }
+
+            .map-search button {
+                width: 100%;
+            }
+
+            #painel {
+                top: 166px;
+                max-height: calc(100dvh - 186px);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div id="login">
+    <div class="login-box">
+        <h1 class="title-with-icon"><img class="title-icon-image" src="earth.png" alt="Terra"><span>Gestão Fundiária</span></h1>
+        <h3>Monitoramento territorial</h3>
+
+        <label for="user">Nome de Usuário:</label>
+        <input type="text" id="user" placeholder="Usuário" autocomplete="username" autocapitalize="none" spellcheck="false">
+
+        <label for="pass">Senha:</label>
+        <div class="password-wrap">
+            <input type="password" id="pass" placeholder="Senha" autocomplete="current-password">
+            <button type="button" class="password-toggle" id="toggle-pass" onclick="alternarVisibilidadeSenha()" aria-label="Mostrar senha" title="Mostrar senha">
+                <i class="fas fa-eye"></i>
+            </button>
+        </div>
+
+        <button type="button" id="login-submit-btn" onclick="login()">Entrar</button>
+        <div id="login-status" class="login-status" aria-live="polite"></div>
+    </div>
+
+    <div id="login-carregando" aria-live="polite">
+        <div class="loading-spinner"></div>
+        <div>MAPEANDO INFORMAÇÕES</div>
+    </div>
+
+    <div class="login-brand">
+        <a href="https://safrasecifras.com.br/?gad_source=1&gad_campaignid=23520481370&gbraid=0AAAAACXcKy09niprXuqrEU0mHms0DNilj&gclid=Cj0KCQjwp7jOBhDGARIsABe7C4eERAEEn3DstBDGKO8uSon1HFakLOzlQLaimIIUDs8wRqanZ6lnJ8kaAnHnEALw_wcB" target="_blank" rel="noopener noreferrer">
+            <img class="brand-logo" src="https://s.criacaostatic.cc/safrasecifraswng5tdg0/uploads/2023/10/Ativo-1s@4x.png" alt="Safras e Cifras" />
+        </a>
+    </div>
+</div>
+
+<div id="mapa-container" style="position: relative;">
+    <div class="map-header">
+        <div class="map-header-left">
+            <h2 class="title-with-icon"><img class="title-icon-image" src="earth.png" alt="Terra"><span>Gestão Fundiária</span></h2>
+        </div>
+        <div class="map-search">
+            <div class="map-search-input-wrap">
+                <input type="text" id="map-search-input" placeholder="Pesquisar por imóvel ou matrícula" />
+                <ul id="map-search-results" class="map-search-results"></ul>
+            </div>
+            <button type="button" id="map-search-btn">Pesquisar</button>
+        </div>
+        <div class="map-brand">
+            <a href="https://safrasecifras.com.br/?gad_source=1&gad_campaignid=23520481370&gbraid=0AAAAACXcKy09niprXuqrEU0mHms0DNilj&gclid=Cj0KCQjwp7jOBhDGARIsABe7C4eERAEEn3DstBDGKO8uSon1HFakLOzlQLaimIIUDs8wRqanZ6lnJ8kaAnHnEALw_wcB" target="_blank" rel="noopener noreferrer">
+                <img class="brand-logo" src="https://s.criacaostatic.cc/safrasecifraswng5tdg0/uploads/2023/10/Ativo-1s@4x.png" alt="Safras e Cifras" />
+            </a>
+        </div>
+    </div>
+    <div id="map"></div>
+    
+    <!-- Painel de informações -->
+    <div id="painel" class="inativo">
+        <h2 id="painel-title"><i class="fas fa-warehouse"></i><span id="painel-title-text">Informações</span></h2>
+
+        <div id="conteudo-fundiarios" class="section-block">
+            <div class="section-header">
+                <div><i class="fas fa-file-alt"></i> Dados Fundiários</div>
+                <div class="toggle-icon">▸</div>
+            </div>
+            <div class="section-content hidden" id="section-fundiarios"></div>
+        </div>
+
+        <div id="conteudo-ambientais" class="section-block">
+            <div class="section-header">
+                <div><i class="fas fa-leaf"></i> Dados Ambientais</div>
+                <div class="toggle-icon">▸</div>
+            </div>
+            <div class="section-content hidden" id="section-ambientais"></div>
+        </div>
+
+        <div class="painel-actions">
+            <a id="btn-whatsapp" href="https://wa.me/5500000000000" target="_blank" rel="noopener noreferrer" class="painel-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="#25D366">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                </svg>
+                Nos contate
+            </a>
+            <button id="btn-gerar-relatorio" style="display:none;" onclick="gerarRelatorio()">Gerar Relatório</button>
+            <button id="btn-fechar-painel" onclick="fecharPainel()">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function fecharPainel() {
+    document.getElementById("painel").classList.remove("ativo");
+}
+
+function initSectionToggle() {
+    document.querySelectorAll('#painel .section-header').forEach(header => {
+        header.addEventListener('click', function() {
+            var content = this.nextElementSibling;
+            if (!content) return;
+            content.classList.toggle('hidden');
+            this.classList.toggle('open');
+        });
+    });
+}
+</script>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-geopackage@0.0.1/dist/leaflet-geopackage.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
+
+<script>
+var selectedFeatureProps = null;
+var selectedFeatureName = '';
+var selectedFeatureLayer = null;
+var colecaoImoveisFeatures = [];
+var poppinsFontBase64 = null;
+var logoRelatorioDataUrl = null;
+var logoRelatorioUrl = 'https://s.criacaostatic.cc/safrasecifraswng5tdg0/uploads/2023/10/Ativo-1s@4x.png';
+var prodesAnoInicial = 2008;
+var mapaInicializado = false;
+
+function valorCampo(props, candidatos, fallback) {
+    if (!props) return fallback || '---';
+
+    for (var i = 0; i < candidatos.length; i++) {
+        var key = candidatos[i];
+        if (props[key] !== undefined && props[key] !== null && props[key] !== '') {
+            return props[key];
+        }
+    }
+
+    return fallback || '---';
+}
+
+function normalizarTextoBusca(texto) {
+    return String(texto || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/ç/g, 'c')
+        .replace(/Ç/g, 'C')
+        .toLowerCase()
+        .trim();
+}
+
+function limparTextoRelatorio(texto) {
+    return String(texto || '')
+        .replace(/\s*\n+\s*/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/\s+([,.;:])/g, '$1')
+        .trim();
+}
+
+function montarAnaliseFundiariaLocal(dados) {
+    var nomeImovelAnalise = dados['Nome do imóvel'] || dados['Propriedade'] || dados['nome'] || 'Sem identificação';
+    var ccirValido = dados.CCIR && dados.CCIR !== 'Não informado' && dados.CCIR !== '---';
+    var matriculaValida = dados['Matrícula'] && dados['Matrícula'] !== 'Não informado' && dados['Matrícula'] !== '---';
+
+    var status = (ccirValido && matriculaValida)
+        ? 'indica um nível inicial de conformidade fundiária'
+        : 'sugere necessidade de complementação cadastral para maior segurança jurídica';
+
+    return 'O imóvel "' + nomeImovelAnalise + '" apresenta área declarada de '
+        + (dados['Área'] || 'não informada') + '. A leitura técnica dos dados disponíveis ' + status
+        + '. Recomenda-se validar a consistência entre CCIR, matrícula e titularidade, além de manter a atualização documental perante os órgãos competentes para mitigação de riscos regulatórios e operacionais.';
+}
+
+function normalizarChaveGenerica(chave) {
+    return String(chave || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '');
+}
+
+function valorCampoNormalizado(props, candidatos, fallback) {
+    if (!props || typeof props !== 'object') return fallback;
+
+    for (var i = 0; i < candidatos.length; i++) {
+        var chaveDireta = candidatos[i];
+        if (props[chaveDireta] !== undefined && props[chaveDireta] !== null && props[chaveDireta] !== '') {
+            return props[chaveDireta];
+        }
+    }
+
+    var mapa = {};
+    Object.keys(props).forEach(function(k) {
+        mapa[normalizarChaveGenerica(k)] = props[k];
+    });
+
+    for (var j = 0; j < candidatos.length; j++) {
+        var chaveNorm = normalizarChaveGenerica(candidatos[j]);
+        if (mapa[chaveNorm] !== undefined && mapa[chaveNorm] !== null && mapa[chaveNorm] !== '') {
+            return mapa[chaveNorm];
+        }
+    }
+
+    return fallback;
+}
+
+function normalizarComparacao(valor) {
+    return String(valor || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+}
+
+function obterNomeAreaConformidade(props, fallback) {
+    return valorCampoNormalizado(props, ['NM_Imovel', 'Name', 'name', 'nome'], fallback || 'Área sem identificação');
+}
+
+function obterTextoContagemImoveis(total) {
+    return String(total) + ' ' + (Number(total) > 1 ? 'imóveis' : 'imóvel');
+}
+
+function saoFeicoesContinuas(turfRef, featureA, featureB) {
+    if (!turfRef || !featureA || !featureB) return false;
+
+    var testes = [
+        'booleanIntersects',
+        'booleanTouches',
+        'booleanOverlap',
+        'booleanContains',
+        'booleanWithin'
+    ];
+
+    for (var i = 0; i < testes.length; i++) {
+        var nomeTeste = testes[i];
+        if (typeof turfRef[nomeTeste] !== 'function') continue;
+
+        try {
+            if (turfRef[nomeTeste](featureA, featureB) || turfRef[nomeTeste](featureB, featureA)) {
+                return true;
+            }
+        } catch (error) {
+            // tenta o próximo predicado geométrico
+        }
+    }
+
+    try {
+        var bboxA = turfRef.bbox(featureA);
+        var bboxB = turfRef.bbox(featureB);
+        var separados = bboxA[2] < bboxB[0] || bboxB[2] < bboxA[0] || bboxA[3] < bboxB[1] || bboxB[3] < bboxA[1];
+        return !separados;
+    } catch (error) {
+        return false;
+    }
+}
+
+function montarAvisoConformidadeLocal(caso) {
+    var ccirA = caso.ccirA || 'CCIR não informado';
+    var ccirB = caso.ccirB || 'CCIR não informado';
+    var declA = caso.declaranteA || 'declarante não informado';
+    var declB = caso.declaranteB || 'declarante não informado';
+
+    if (caso.tipo === 'mesmo_declarante_codigos_divergentes') {
+        return 'Foi identificada possível continuidade territorial entre os registros vinculados aos CCIRs ' + ccirA + ' e ' + ccirB + ', ambos associados ao mesmo declarante (' + declA + '). A leitura cadastral indica divergência entre os registros declaratórios dessas áreas, sugerindo necessidade de reestruturação das declarações para alinhamento ao conceito de imóvel rural único e para redução de risco de inconsistência fundiária.';
+    }
+
+    return 'Foi identificada possível continuidade territorial entre os registros vinculados aos CCIRs ' + ccirA + ' e ' + ccirB + ', com declarantes distintos (' + declA + ' e ' + declB + ') para registros cadastrais coincidentes. Esse cenário sugere necessidade de reestruturação das declarações, pois o mesmo imóvel rural não deve permanecer associado a múltiplos declarantes quando houver correspondência cadastral entre as áreas.';
+}
+
+async function gerarAvisoConformidadeIA(caso) {
+    var apiKey = (window.GEMINI_API_KEY || '').trim();
+
+    if (!apiKey) {
+        return montarAvisoConformidadeLocal(caso);
+    }
+
+    var prompt = 'Você é analista fundiário no Brasil. Gere 1 parágrafo técnico, objetivo e humanizado, em português do Brasil, sem tópicos, sem marcadores e sem quebra de linha. O texto deve indicar possível continuidade territorial entre áreas e recomendar necessidade de reestruturação das declarações. Não exponha dados de forma bruta (evite formato de lista de códigos e evite padrão campo: valor). Explique a inconsistência com base no conceito de imóvel rural de forma clara e concisa, usando apenas os dados fornecidos: ' + JSON.stringify(caso);
+
+    try {
+        var response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=' + apiKey, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { maxOutputTokens: 220, temperature: 0.2 }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Falha na API Gemini: ' + response.status);
+        }
+
+        var payload = await response.json();
+        var texto = extrairTextoRespostaGemini(payload);
+        var textoFinal = texto || montarAvisoConformidadeLocal(caso);
+        return String(textoFinal).replace(/\s*\n+\s*/g, ' ').trim();
+    } catch (error) {
+        console.warn('Falha ao gerar aviso de conformidade com IA, usando fallback local.', error);
+        return montarAvisoConformidadeLocal(caso);
+    }
+}
+
+async function gerarAvisosConformidadeIA(inconsistencias) {
+    var avisos = [];
+    for (var i = 0; i < inconsistencias.length; i++) {
+        var inconsistencia = inconsistencias[i];
+        var texto = await gerarAvisoConformidadeIA(inconsistencia);
+        avisos.push(String(texto || '').trim());
+    }
+    return avisos;
+}
+
+function detectarRelacionamentosConformidade(featureSelecionada, featuresColecao) {
+    var turfRef = window.turf;
+    if (!turfRef || !featureSelecionada || !featureSelecionada.geometry || !Array.isArray(featuresColecao)) {
+        return { continuidades: [], inconsistencias: [] };
+    }
+
+    var selecionadaProps = featureSelecionada.properties || {};
+    var selecionadaId = valorCampoNormalizado(selecionadaProps, ['id'], '');
+    var selecionadaDeclarante = valorCampoNormalizado(selecionadaProps, ['Declarante', 'declarante'], 'Não informado');
+    var selecionadaCCIR = valorCampoNormalizado(selecionadaProps, ['CCIR', 'ccir'], 'Não informado');
+    var selecionadaCIB = valorCampoNormalizado(selecionadaProps, ['CIB', 'cib'], 'Não informado');
+
+    var continuidades = [];
+    var inconsistencias = [];
+
+    featuresColecao.forEach(function(feature) {
+        if (!feature || !feature.geometry || !feature.properties) return;
+
+        var props = feature.properties;
+        var idAtual = valorCampoNormalizado(props, ['id'], '');
+        if (selecionadaId !== '' && idAtual !== '' && String(selecionadaId) === String(idAtual)) {
+            return;
+        }
+
+        var mesmaGeometria = false;
+        try {
+            mesmaGeometria = turfRef.booleanEqual(featureSelecionada.geometry, feature.geometry);
+        } catch (error) {
+            mesmaGeometria = false;
+        }
+        if (mesmaGeometria) return;
+
+        var emContinuidade = saoFeicoesContinuas(turfRef, featureSelecionada, feature);
+        if (!emContinuidade) return;
+
+        var declaranteAtual = valorCampoNormalizado(props, ['Declarante', 'declarante'], 'Não informado');
+        var ccirAtual = valorCampoNormalizado(props, ['CCIR', 'ccir'], 'Não informado');
+        var cibAtual = valorCampoNormalizado(props, ['CIB', 'cib'], 'Não informado');
+
+        continuidades.push({
+            ccir: ccirAtual,
+            declarante: declaranteAtual,
+            cib: cibAtual
+        });
+
+        var mesmoDeclarante = normalizarComparacao(selecionadaDeclarante) !== ''
+            && normalizarComparacao(declaranteAtual) !== ''
+            && normalizarComparacao(selecionadaDeclarante) === normalizarComparacao(declaranteAtual);
+        var declarantesDiferentes = normalizarComparacao(selecionadaDeclarante) !== ''
+            && normalizarComparacao(declaranteAtual) !== ''
+            && normalizarComparacao(selecionadaDeclarante) !== normalizarComparacao(declaranteAtual);
+
+        var ccirIguais = normalizarComparacao(selecionadaCCIR) !== ''
+            && normalizarComparacao(ccirAtual) !== ''
+            && normalizarComparacao(selecionadaCCIR) === normalizarComparacao(ccirAtual);
+        var cibIguais = normalizarComparacao(selecionadaCIB) !== ''
+            && normalizarComparacao(cibAtual) !== ''
+            && normalizarComparacao(selecionadaCIB) === normalizarComparacao(cibAtual);
+
+        var ccirDiferentes = normalizarComparacao(selecionadaCCIR) !== normalizarComparacao(ccirAtual);
+        var cibDiferentes = normalizarComparacao(selecionadaCIB) !== normalizarComparacao(cibAtual);
+
+        if (mesmoDeclarante && (ccirDiferentes || cibDiferentes)) {
+            inconsistencias.push({
+                tipo: 'mesmo_declarante_codigos_divergentes',
+                declaranteA: selecionadaDeclarante,
+                declaranteB: declaranteAtual,
+                ccirA: selecionadaCCIR,
+                ccirB: ccirAtual,
+                cibA: selecionadaCIB,
+                cibB: cibAtual
+            });
+            return;
+        }
+
+        if (declarantesDiferentes && ccirIguais && cibIguais) {
+            inconsistencias.push({
+                tipo: 'declarantes_diferentes_codigos_iguais',
+                declaranteA: selecionadaDeclarante,
+                declaranteB: declaranteAtual,
+                ccirA: selecionadaCCIR,
+                ccirB: ccirAtual,
+                cibA: selecionadaCIB,
+                cibB: cibAtual
+            });
+        }
+    });
+
+    return {
+        continuidades: continuidades,
+        inconsistencias: inconsistencias
+    };
+}
+
+function montarAnaliseConformidadeLocal(resumo) {
+    var total = Number(resumo && resumo.totalImoveisContinuos || 0);
+    var ccirImovel = resumo && resumo.ccirImovelSelecionado ? resumo.ccirImovelSelecionado : 'CCIR do imóvel selecionado';
+    var totalInconsistencias = Number(resumo && resumo.totalInconsistencias || 0);
+    var inconsistencias = resumo && Array.isArray(resumo.inconsistencias) ? resumo.inconsistencias : [];
+
+    function formatarListaComE(lista) {
+        if (!lista || !lista.length) return '';
+        if (lista.length === 1) return lista[0];
+        if (lista.length === 2) return lista[0] + ' e ' + lista[1];
+        return lista.slice(0, -1).join(', ') + ' e ' + lista[lista.length - 1];
+    }
+
+    var ccirsDivergentesMap = {};
+    inconsistencias.forEach(function(item) {
+        if (!item) return;
+        if (item.ccirA && String(item.ccirA) !== String(ccirImovel)) {
+            ccirsDivergentesMap[item.ccirA] = true;
+        }
+        if (item.ccirB && String(item.ccirB) !== String(ccirImovel)) {
+            ccirsDivergentesMap[item.ccirB] = true;
+        }
+    });
+    var ccirsDivergentes = Object.keys(ccirsDivergentesMap);
+    var textoCcirsDivergentes = ccirsDivergentes.length
+        ? formatarListaComE(ccirsDivergentes)
+        : 'sem registros divergentes adicionais';
+    var termoImovel = ccirsDivergentes.length > 1 ? 'os imóveis' : 'o imóvel';
+    var termoCCIR = ccirsDivergentes.length > 1 ? 'CCIRs' : 'CCIR';
+
+    var primeiroParagrafo = 'Foi identificada possível continuidade de área de mesmos proprietários no imóvel em questão. Essa ocorrência de inconsistência envolve ' + termoImovel + ' de ' + termoCCIR + ' ' + textoCcirsDivergentes + '.';
+
+    var segundoParagrafoFixo = 'O ponto de atenção é a existência de divergências cadastrais entre áreas contíguas de um mesmo declarante, indicando que partes de um único imóvel rural podem estar sendo declaradas separadamente.';
+
+    var terceiroParagrafoFixo = 'Para correção, recomenda-se revisar a titularidade e os códigos de CCIR e CIB das áreas envolvidas e, caso confirmado o mesmo proprietário, realizar a unificação das declarações para adequação ao conceito de imóvel rural.';
+
+    return [primeiroParagrafo, segundoParagrafoFixo, terceiroParagrafoFixo].join('\n\n');
+}
+
+function unificarTextoAnaliseConformidade(partes) {
+    return (Array.isArray(partes) ? partes : [partes])
+        .map(function(parte) {
+            return String(parte || '').replace(/\s*\n+\s*/g, ' ').trim();
+        })
+        .filter(Boolean)
+        .join(' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+}
+
+async function gerarAnaliseConformidadeIA(resumo) {
+    var resumoBase = montarAnaliseConformidadeLocal(resumo);
+    var paragrafos = String(resumoBase || '')
+        .split(/\n\s*\n/)
+        .map(function(paragrafo) { return limparTextoRelatorio(paragrafo); })
+        .filter(Boolean);
+    return paragrafos.length ? paragrafos : [limparTextoRelatorio(unificarTextoAnaliseConformidade([resumoBase]))];
+}
+
+function extrairTextoRespostaGemini(payload) {
+    if (!payload) return '';
+    try {
+        return payload.candidates[0].content.parts[0].text || '';
+    } catch (e) {
+        return '';
+    }
+}
+
+async function gerarAnaliseIA(dados) {
+    var apiKey = (window.GEMINI_API_KEY || '').trim();
+
+    if (!apiKey) {
+        return limparTextoRelatorio(montarAnaliseFundiariaLocal(dados));
+    }
+
+    var prompt = 'Você é revisor técnico e analista fundiário. Gere um único parágrafo final de relatório, em português do Brasil, com redação clara, coesa, elegante e objetiva. Faça um pente fino de linguagem: elimine repetições, melhore a fluidez entre as ideias, preserve a precisão técnica e não invente dados. O texto deve soar pronto para um relatório executivo, sem tópicos e sem quebras de linha, sobre regularização fundiária do imóvel com base nestes dados: '
+        + JSON.stringify(dados)
+        + '. Aponte possíveis conformidades e pendências de forma objetiva, sem inventar dados.';
+
+    try {
+        var response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=' + apiKey, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { maxOutputTokens: 220, temperature: 0.4 }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Falha na API Gemini: ' + response.status);
+        }
+
+        var payload = await response.json();
+        var texto = extrairTextoRespostaGemini(payload);
+        return limparTextoRelatorio(texto || montarAnaliseFundiariaLocal(dados));
+    } catch (error) {
+        console.warn('Falha ao gerar análise com IA, usando fallback local.', error);
+        return limparTextoRelatorio(montarAnaliseFundiariaLocal(dados));
+    }
+}
+
+function montarInterpretacaoProdesLocal(resumo) {
+    if (!resumo || !resumo.prodes) {
+        return 'Não foi possível concluir a interpretação ambiental automática por indisponibilidade dos dados de entrada.';
+    }
+
+    var prodes = resumo.prodes;
+    var areaTotal = formatarNumeroPtBr(resumo.areaTotalHa || 0, 2);
+    var areaDesmatada = formatarNumeroPtBr(prodes.areaSobrepostaEstimHa || 0, 2);
+    var percentualDesmatado = formatarNumeroPtBr((resumo.areaTotalHa > 0)
+        ? ((Number(prodes.areaSobrepostaEstimHa || 0) / Number(resumo.areaTotalHa)) * 100)
+        : 0, 2);
+    var anoInicialDetectado = null;
+    var anoFinalDetectado = null;
+    if (prodes.codigosDetectados && prodes.codigosDetectados.length) {
+        prodes.codigosDetectados.forEach(function(item) {
+            var ano = Number(String(item).replace(/^d/i, ''));
+            if (!isFinite(ano)) return;
+            anoInicialDetectado = (anoInicialDetectado === null) ? ano : Math.min(anoInicialDetectado, ano);
+            anoFinalDetectado = (anoFinalDetectado === null) ? ano : Math.max(anoFinalDetectado, ano);
+        });
+    }
+    var faixaTemporal = (anoInicialDetectado !== null && anoFinalDetectado !== null)
+        ? (anoInicialDetectado === anoFinalDetectado ? String(anoInicialDetectado) : (anoInicialDetectado + ' a ' + anoFinalDetectado))
+        : ('a partir de ' + prodesAnoInicial);
+    var totalPoligonos = Number(prodes.totalPoligonosIntersectantes || 0);
+    var textoPoligonos = totalPoligonos === 1
+        ? '1 polígono intersectante'
+        : formatarNumeroPtBr(totalPoligonos, 0) + ' polígonos intersectantes';
+    var textoOcorrencia = totalPoligonos === 1 ? 'A ocorrência foi observada' : 'As ocorrências foram observadas';
+    var textoFaixaTemporal = (anoInicialDetectado !== null && anoInicialDetectado === anoFinalDetectado)
+        ? 'no ano de ' + faixaTemporal
+        : 'na faixa temporal de ' + faixaTemporal;
+
+    if (!prodes.temDesmatamento) {
+        return 'Na análise do PRODES para o período de ' + prodesAnoInicial + ' em diante, não foram encontradas áreas desmatadas com sobreposição ao imóvel. Em termos práticos, isso indica que, dentro do recorte avaliado, não houve registro espacial de corte raso incidindo na propriedade. Ainda assim, é recomendável manter o monitoramento periódico e a revisão documental para acompanhar atualizações futuras da base oficial.';
+    }
+
+    return 'A leitura espacial do PRODES identificou desmatamento dentro do imóvel. A área total sobreposta é de ' + areaDesmatada + ' hectares, o que representa ' + percentualDesmatado + '% da área total da propriedade (' + areaTotal + ' hectares). ' + textoOcorrencia + ' ' + textoFaixaTemporal + ', com ' + textoPoligonos + '. Este resultado não caracteriza automaticamente uma irregularidade; ele deve ser tratado como um sinal de atenção a ser investigado tecnicamente por profissionais ambientais habilitados.';
+}
+
+async function gerarInterpretacaoProdesIA(resumo) {
+    var apiKey = (window.GEMINI_API_KEY || '').trim();
+
+    if (!apiKey) {
+        return limparTextoRelatorio(montarInterpretacaoProdesLocal(resumo));
+    }
+
+    var prompt = 'Você é revisor técnico e analista ambiental no Brasil. Gere um único texto final de relatório, em português do Brasil, com linguagem clara, coesa, elegante e tecnicamente precisa. Faça um pente fino de estilo para eliminar repetições, melhorar o encadeamento das ideias e manter leitura fluida. Considere apenas o PRODES para identificar áreas desmatadas dentro do imóvel a partir de 2008. O texto deve citar explicitamente a área em hectares e a faixa temporal de ocorrência. Não mencione códigos do PRODES. Deixe explícito que o achado não caracteriza automaticamente irregularidade e que deve ser investigado tecnicamente por profissionais ambientais habilitados. Interprete estes resultados: '
+        + JSON.stringify(resumo)
+        + '. Explique brevemente o que é o PRODES, apresente leitura técnica dos números com boa fluidez narrativa e destaque possíveis implicações para regularização ambiental.';
+
+    try {
+        var response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=' + apiKey, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { maxOutputTokens: 320, temperature: 0.35 }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Falha na API Gemini: ' + response.status);
+        }
+
+        var payload = await response.json();
+        var texto = extrairTextoRespostaGemini(payload);
+        return limparTextoRelatorio(texto || montarInterpretacaoProdesLocal(resumo));
+    } catch (error) {
+        console.warn('Falha na interpretação PRODES com IA, usando fallback local.', error);
+        return limparTextoRelatorio(montarInterpretacaoProdesLocal(resumo));
+    }
+}
+
+async function consultarDesmatamentoProdesNoImovel(geometry) {
+    var turfRef = window.turf;
+    if (!turfRef) {
+        return {
+            disponivel: false,
+            temDesmatamento: false,
+            erro: 'Biblioteca Turf.js indisponível para análise PRODES.'
+        };
+    }
+
+    if (!geometry || !geometry.type || !geometry.coordinates) {
+        return {
+            disponivel: false,
+            temDesmatamento: false,
+            erro: 'Geometria do imóvel inválida para consulta PRODES.'
+        };
+    }
+
+    var wkt = geometriaGeoJsonParaWkt(geometry);
+    if (!wkt) {
+        return {
+            disponivel: false,
+            temDesmatamento: false,
+            erro: 'Não foi possível converter a geometria do imóvel para consulta PRODES.'
+        };
+    }
+
+    var featureImovel = turfRef.feature(geometry);
+    var areaImovelHa = turfRef.area(featureImovel) / 10000;
+    var endpoint = 'https://terrabrasilis.dpi.inpe.br/geoserver/wfs';
+    var camadasProdes = [
+        'prodes-amazon-nb:yearly_deforestation_biome',
+        'prodes-legal-amz:yearly_deforestation',
+        'prodes-cerrado-nb:yearly_deforestation',
+        'prodes-caatinga-nb:yearly_deforestation',
+        'prodes-mata-atlantica-nb:yearly_deforestation',
+        'prodes-pampa-nb:yearly_deforestation',
+        'prodes-pantanal-nb:yearly_deforestation'
+    ];
+
+    var areaSobrepostaHa = 0;
+    var anosDetectados = {};
+    var totalPoligonosIntersectantes = 0;
+    var geometriasSobrepostas = [];
+    var erros = [];
+
+    for (var i = 0; i < camadasProdes.length; i++) {
+        var camada = camadasProdes[i];
+        var params = new URLSearchParams({
+            service: 'WFS',
+            version: '1.0.0',
+            request: 'GetFeature',
+            typeName: camada,
+            outputFormat: 'application/json',
+            srsName: 'EPSG:4674',
+            maxFeatures: '5000',
+            propertyName: 'geom,year',
+            cql_filter: 'year>=' + prodesAnoInicial + ' AND INTERSECTS(geom,SRID=4674;' + wkt + ')'
+        });
+
+        try {
+            var response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                },
+                body: params.toString()
+            });
+
+            if (!response.ok) {
+                throw new Error('Falha na camada ' + camada + ': HTTP ' + response.status);
+            }
+
+            var payload = await response.json();
+            var features = payload && Array.isArray(payload.features) ? payload.features : [];
+
+            features.forEach(function(feature) {
+                if (!feature || !feature.geometry) return;
+
+                var ano = Number(feature.properties && feature.properties.year);
+                if (!isFinite(ano) || ano < prodesAnoInicial) {
+                    return;
+                }
+
+                try {
+                    var intersecao = turfRef.intersect(featureImovel, feature);
+                    if (!intersecao || !intersecao.geometry) return;
+
+                    var areaIntersecaoHa = turfRef.area(intersecao) / 10000;
+                    if (!isFinite(areaIntersecaoHa) || areaIntersecaoHa <= 0) return;
+
+                    areaSobrepostaHa += areaIntersecaoHa;
+                    totalPoligonosIntersectantes += 1;
+                    anosDetectados['d' + String(ano)] = true;
+                    if (intersecao.geometry && (intersecao.geometry.type === 'Polygon' || intersecao.geometry.type === 'MultiPolygon')) {
+                        geometriasSobrepostas.push({
+                            ano: ano,
+                            geometry: intersecao.geometry
+                        });
+                    }
+                } catch (error) {
+                    // ignora feição inválida pontual
+                }
+            });
+        } catch (error) {
+            erros.push((error && error.message) ? error.message : String(error));
+        }
+    }
+
+    var codigos = Object.keys(anosDetectados).sort();
+    var anoMaisRecente = null;
+    codigos.forEach(function(codigo) {
+        var anoNum = Number(String(codigo).replace(/^d/i, ''));
+        if (isFinite(anoNum)) {
+            anoMaisRecente = anoMaisRecente === null ? anoNum : Math.max(anoMaisRecente, anoNum);
+        }
+    });
+
+    var percentualImovel = areaImovelHa > 0 ? (areaSobrepostaHa / areaImovelHa) * 100 : 0;
+
+    return {
+        disponivel: erros.length < camadasProdes.length,
+        temDesmatamento: areaSobrepostaHa > 0,
+        areaSobrepostaEstimHa: areaSobrepostaHa,
+        areaSobrepostaEstimKm2: areaSobrepostaHa / 100,
+        percentualImovel: percentualImovel,
+        anoMaisRecente: anoMaisRecente,
+        codigosDetectados: codigos,
+        totalPoligonosIntersectantes: totalPoligonosIntersectantes,
+        geometriasSobrepostas: geometriasSobrepostas,
+        periodoInicial: prodesAnoInicial,
+        erro: erros.length ? erros.join(' | ') : null
+    };
+}
+
+async function carregarPoppinsNoPDF(doc) {
+    if (poppinsFontBase64) {
+        doc.addFileToVFS('Poppins-Regular.ttf', poppinsFontBase64);
+        doc.addFont('Poppins-Regular.ttf', 'Poppins', 'normal');
+        return true;
+    }
+
+    try {
+        var fontUrl = 'Poppins-Regular.ttf';
+        var response = await fetch(fontUrl);
+        if (!response.ok) throw new Error('Não foi possível baixar fonte Poppins.');
+
+        var buffer = await response.arrayBuffer();
+        var bytes = new Uint8Array(buffer);
+        var binary = '';
+
+        for (var i = 0; i < bytes.length; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+
+        poppinsFontBase64 = btoa(binary);
+        doc.addFileToVFS('Poppins-Regular.ttf', poppinsFontBase64);
+        doc.addFont('Poppins-Regular.ttf', 'Poppins', 'normal');
+        return true;
+    } catch (error) {
+        console.warn('Fonte Poppins indisponível no PDF.', error);
+        return false;
+    }
+}
+
+function limparNomeArquivo(texto) {
+    return String(texto || 'imovel')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9-_\s]/g, '')
+        .trim()
+        .replace(/\s+/g, '_');
+}
+
+function achatarCoordenadas(geometry, coordenadas) {
+    if (!geometry || !geometry.type || !geometry.coordinates) return;
+
+    if (geometry.type === 'Polygon') {
+        geometry.coordinates.forEach(function(ring) {
+            ring.forEach(function(coord) {
+                if (Array.isArray(coord) && coord.length >= 2) {
+                    coordenadas.push([Number(coord[0]), Number(coord[1])]);
+                }
+            });
+        });
+        return;
+    }
+
+    if (geometry.type === 'MultiPolygon') {
+        geometry.coordinates.forEach(function(poly) {
+            poly.forEach(function(ring) {
+                ring.forEach(function(coord) {
+                    if (Array.isArray(coord) && coord.length >= 2) {
+                        coordenadas.push([Number(coord[0]), Number(coord[1])]);
+                    }
+                });
+            });
+        });
+    }
+}
+
+function desenharGeometria(ctx, geometry, projetar) {
+    if (!geometry || !geometry.type || !geometry.coordinates) return;
+
+    function desenharAnel(ring) {
+        if (!ring || !ring.length) return;
+        ring.forEach(function(coord, index) {
+            var ponto = projetar(coord);
+            if (index === 0) {
+                ctx.moveTo(ponto.x, ponto.y);
+            } else {
+                ctx.lineTo(ponto.x, ponto.y);
+            }
+        });
+        ctx.closePath();
+    }
+
+    if (geometry.type === 'Polygon') {
+        geometry.coordinates.forEach(desenharAnel);
+        return;
+    }
+
+    if (geometry.type === 'MultiPolygon') {
+        geometry.coordinates.forEach(function(poly) {
+            poly.forEach(desenharAnel);
+        });
+    }
+}
+
+function fecharAnelWkt(ring) {
+    if (!Array.isArray(ring) || !ring.length) return [];
+
+    var pontos = ring
+        .filter(function(coord) {
+            return Array.isArray(coord) && coord.length >= 2 && isFinite(Number(coord[0])) && isFinite(Number(coord[1]));
+        })
+        .map(function(coord) {
+            return [Number(coord[0]), Number(coord[1])];
+        });
+
+    if (pontos.length < 3) return [];
+
+    var primeiro = pontos[0];
+    var ultimo = pontos[pontos.length - 1];
+    if (primeiro[0] !== ultimo[0] || primeiro[1] !== ultimo[1]) {
+        pontos.push([primeiro[0], primeiro[1]]);
+    }
+
+    return pontos;
+}
+
+function anelParaWkt(ring) {
+    var fechado = fecharAnelWkt(ring);
+    if (!fechado.length) return null;
+    return '(' + fechado.map(function(pt) { return pt[0] + ' ' + pt[1]; }).join(', ') + ')';
+}
+
+function geometriaGeoJsonParaWkt(geometry) {
+    if (!geometry || !geometry.type || !geometry.coordinates) return null;
+
+    if (geometry.type === 'Polygon') {
+        var aneis = geometry.coordinates
+            .map(anelParaWkt)
+            .filter(Boolean);
+
+        if (!aneis.length) return null;
+        return 'POLYGON(' + aneis.join(', ') + ')';
+    }
+
+    if (geometry.type === 'MultiPolygon') {
+        var polys = geometry.coordinates
+            .map(function(poly) {
+                var aneis = (poly || []).map(anelParaWkt).filter(Boolean);
+                if (!aneis.length) return null;
+                return '(' + aneis.join(', ') + ')';
+            })
+            .filter(Boolean);
+
+        if (!polys.length) return null;
+        return 'MULTIPOLYGON(' + polys.join(', ') + ')';
+    }
+
+    return null;
+}
+
+function formatarNumeroPtBr(valor, casasDecimais) {
+    var numero = Number(valor);
+    if (!isFinite(numero)) return '0';
+    return numero.toLocaleString('pt-BR', {
+        minimumFractionDigits: casasDecimais,
+        maximumFractionDigits: casasDecimais
+    });
+}
+
+function carregarImagemComCORS(url) {
+    return new Promise(function(resolve, reject) {
+        var img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function() {
+            resolve(img);
+        };
+        img.onerror = function() {
+            reject(new Error('Falha ao carregar imagem de fundo.'));
+        };
+        img.src = url;
+    });
+}
+
+function limitarLatitudeMercator(lat) {
+    return Math.max(-85.05112878, Math.min(85.05112878, Number(lat)));
+}
+
+function lonParaPixelMercator(lon, zoom) {
+    var escala = 256 * Math.pow(2, zoom);
+    return ((Number(lon) + 180) / 360) * escala;
+}
+
+function latParaPixelMercator(lat, zoom) {
+    var escala = 256 * Math.pow(2, zoom);
+    var latClamped = limitarLatitudeMercator(lat);
+    var latRad = latClamped * Math.PI / 180;
+    return (0.5 - (Math.log((1 + Math.sin(latRad)) / (1 - Math.sin(latRad))) / (4 * Math.PI))) * escala;
+}
+
+function calcularMelhorZoomBboxMercator(bbox, larguraUtil, alturaUtil) {
+    for (var z = 18; z >= 3; z--) {
+        var minPxX = lonParaPixelMercator(bbox.minLon, z);
+        var maxPxX = lonParaPixelMercator(bbox.maxLon, z);
+        var minPxY = latParaPixelMercator(bbox.maxLat, z);
+        var maxPxY = latParaPixelMercator(bbox.minLat, z);
+
+        var spanX = Math.max(1, maxPxX - minPxX);
+        var spanY = Math.max(1, maxPxY - minPxY);
+
+        if (spanX <= larguraUtil && spanY <= alturaUtil) {
+            return z;
+        }
+    }
+
+    return 3;
+}
+
+function construirBboxPadronizado(minX, maxX, minY, maxY, larguraUtil, alturaUtil) {
+    var centroLon = (Number(minX) + Number(maxX)) / 2;
+    var centroLat = (Number(minY) + Number(maxY)) / 2;
+
+    var spanLon = Math.max(0.0002, Number(maxX) - Number(minX));
+    var minLatBase = limitarLatitudeMercator(Number(minY));
+    var maxLatBase = limitarLatitudeMercator(Number(maxY));
+    var centroLatPxBase = latParaPixelMercator(centroLat, 10);
+    var spanLatPxBase = Math.max(1, Math.abs(latParaPixelMercator(minLatBase, 10) - latParaPixelMercator(maxLatBase, 10)));
+
+    // Relative margin around the property before fitting the map viewport aspect ratio.
+    var margemRelativa = 0.18;
+    spanLon = spanLon * (1 + (margemRelativa * 2));
+    spanLatPxBase = spanLatPxBase * (1 + (margemRelativa * 2));
+
+    var proporcaoAlvo = Math.max(0.1, Number(larguraUtil) / Math.max(1, Number(alturaUtil)));
+    var spanLonPxBase = Math.max(1, lonParaPixelMercator(centroLon + (spanLon / 2), 10) - lonParaPixelMercator(centroLon - (spanLon / 2), 10));
+    var proporcaoAtual = spanLonPxBase / spanLatPxBase;
+
+    if (proporcaoAtual > proporcaoAlvo) {
+        spanLatPxBase = spanLonPxBase / proporcaoAlvo;
+    } else {
+        spanLonPxBase = spanLatPxBase * proporcaoAlvo;
+        var grausPorPixelLon = 360 / (256 * Math.pow(2, 10));
+        spanLon = spanLonPxBase * grausPorPixelLon;
+    }
+
+    var minLon = centroLon - (spanLon / 2);
+    var maxLon = centroLon + (spanLon / 2);
+    var minLatPxFinal = centroLatPxBase + (spanLatPxBase / 2);
+    var maxLatPxFinal = centroLatPxBase - (spanLatPxBase / 2);
+    var escalaLat = 256 * Math.pow(2, 10);
+
+    function pixelParaLatitudeMercator(pixelY, escala) {
+        var n = Math.PI - ((2 * Math.PI * pixelY) / escala);
+        return 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+    }
+
+    var minLat = limitarLatitudeMercator(pixelParaLatitudeMercator(minLatPxFinal, escalaLat));
+    var maxLat = limitarLatitudeMercator(pixelParaLatitudeMercator(maxLatPxFinal, escalaLat));
+
+    return {
+        minLon: minLon,
+        maxLon: maxLon,
+        minLat: minLat,
+        maxLat: maxLat
+    };
+}
+
+async function carregarTileSatelite(tileX, tileY, zoom) {
+    var totalTiles = Math.pow(2, zoom);
+    var xNormalizado = ((tileX % totalTiles) + totalTiles) % totalTiles;
+    if (tileY < 0 || tileY >= totalTiles) return null;
+
+    var urls = [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/' + zoom + '/' + tileY + '/' + xNormalizado,
+        'https://mt1.google.com/vt/lyrs=s&x=' + xNormalizado + '&y=' + tileY + '&z=' + zoom
+    ];
+
+    for (var i = 0; i < urls.length; i++) {
+        try {
+            return await carregarImagemComCORS(urls[i]);
+        } catch (error) {
+            // tenta o proximo provedor de satelite
+        }
+    }
+
+    return null;
+}
+
+async function desenharFundoSateliteTiles(ctx, bbox, largura, altura, padding, viewport) {
+    var viewX = (viewport && isFinite(viewport.x)) ? Number(viewport.x) : 0;
+    var viewY = (viewport && isFinite(viewport.y)) ? Number(viewport.y) : 0;
+    var viewW = (viewport && isFinite(viewport.width)) ? Number(viewport.width) : Number(largura);
+    var viewH = (viewport && isFinite(viewport.height)) ? Number(viewport.height) : Number(altura);
+
+    var larguraUtil = Math.max(1, viewW - (padding * 2));
+    var alturaUtil = Math.max(1, viewH - (padding * 2));
+    var zoom = calcularMelhorZoomBboxMercator(bbox, larguraUtil, alturaUtil);
+
+    var minPxX = lonParaPixelMercator(bbox.minLon, zoom);
+    var maxPxX = lonParaPixelMercator(bbox.maxLon, zoom);
+    var minPxY = latParaPixelMercator(bbox.maxLat, zoom);
+    var maxPxY = latParaPixelMercator(bbox.minLat, zoom);
+
+    var spanX = Math.max(1, maxPxX - minPxX);
+    var spanY = Math.max(1, maxPxY - minPxY);
+    // Use cover scaling so the satellite fills the entire crop area with no side/top/bottom bars.
+    var escala = Math.max(larguraUtil / spanX, alturaUtil / spanY);
+
+    var desenhoLargura = spanX * escala;
+    var desenhoAltura = spanY * escala;
+    var offsetX = viewX + ((viewW - desenhoLargura) / 2);
+    var offsetY = viewY + ((viewH - desenhoAltura) / 2);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(viewX, viewY, viewW, viewH);
+
+    // Compute visible bounds in tile pixel space and request an overscan ring
+    // to avoid tiny seams at the crop edges.
+    var visMinPxX = minPxX + ((viewX - offsetX) / escala);
+    var visMaxPxX = minPxX + (((viewX + viewW) - offsetX) / escala);
+    var visMinPxY = minPxY + ((viewY - offsetY) / escala);
+    var visMaxPxY = minPxY + (((viewY + viewH) - offsetY) / escala);
+
+    var totalTiles = Math.pow(2, zoom);
+    var tileMinX = Math.floor(visMinPxX / 256) - 1;
+    var tileMaxX = Math.floor(visMaxPxX / 256) + 1;
+    var tileMinY = Math.max(0, Math.floor(visMinPxY / 256) - 1);
+    var tileMaxY = Math.min(totalTiles - 1, Math.floor(visMaxPxY / 256) + 1);
+
+    var carregouAlgumTile = false;
+
+    for (var ty = tileMinY; ty <= tileMaxY; ty++) {
+        for (var tx = tileMinX; tx <= tileMaxX; tx++) {
+            var tile = await carregarTileSatelite(tx, ty, zoom);
+            if (!tile) continue;
+
+            carregouAlgumTile = true;
+
+            var tilePxX = tx * 256;
+            var tilePxY = ty * 256;
+            var x = offsetX + ((tilePxX - minPxX) * escala);
+            var y = offsetY + ((tilePxY - minPxY) * escala);
+            var w = 256 * escala;
+            var h = 256 * escala;
+            ctx.drawImage(tile, x, y, w, h);
+        }
+    }
+
+    return {
+        ok: carregouAlgumTile,
+        zoom: zoom,
+        minPxX: minPxX,
+        minPxY: minPxY,
+        escala: escala,
+        offsetX: offsetX,
+        offsetY: offsetY,
+        desenhoLargura: desenhoLargura,
+        desenhoAltura: desenhoAltura
+    };
+}
+
+async function gerarImagemPoligonoSelecionado(consultaProdes) {
+    if (!selectedFeatureLayer || !selectedFeatureLayer.toGeoJSON) return null;
+
+    var geojson = selectedFeatureLayer.toGeoJSON();
+    var geometry = geojson && geojson.geometry ? geojson.geometry : null;
+    if (!geometry) return null;
+
+    var coords = [];
+    achatarCoordenadas(geometry, coords);
+    if (!coords.length) return null;
+
+    var minX = Infinity;
+    var maxX = -Infinity;
+    var minY = Infinity;
+    var maxY = -Infinity;
+
+    coords.forEach(function(coord) {
+        if (!isFinite(coord[0]) || !isFinite(coord[1])) return;
+        minX = Math.min(minX, coord[0]);
+        maxX = Math.max(maxX, coord[0]);
+        minY = Math.min(minY, coord[1]);
+        maxY = Math.max(maxY, coord[1]);
+    });
+
+    if (!isFinite(minX) || !isFinite(maxX) || !isFinite(minY) || !isFinite(maxY)) return null;
+
+    var canvas = document.createElement('canvas');
+    var largura = 1200;
+    var padding = 40;
+    var margemRelativaBbox = 0.18;
+    var spanLonGeom = Math.max(0.0002, maxX - minX) * (1 + (margemRelativaBbox * 2));
+    var spanLatPxGeom = Math.max(1, Math.abs(latParaPixelMercator(minY, 10) - latParaPixelMercator(maxY, 10))) * (1 + (margemRelativaBbox * 2));
+    var spanLonPxGeom = Math.max(1, lonParaPixelMercator(minX + spanLonGeom, 10) - lonParaPixelMercator(minX, 10));
+    var proporcaoMapa = spanLonPxGeom / spanLatPxGeom;
+    var alturaCalculada = Math.round(largura / Math.max(0.25, Math.min(4, proporcaoMapa)));
+    var altura = Math.max(500, Math.min(900, alturaCalculada));
+    canvas.width = largura;
+    canvas.height = altura;
+
+    var ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    var bordaExterna = 0;
+    var escalaItensMapa = 0.82;
+    function s(valor) {
+        return Number(valor) * escalaItensMapa;
+    }
+    var raioMapa = s(8);
+    var mapaViewportX = bordaExterna;
+    var mapaViewportY = bordaExterna;
+    var mapaViewportLargura = largura - (bordaExterna * 2);
+    var mapaViewportAltura = altura - (bordaExterna * 2);
+    var larguraUtil = Math.max(1, mapaViewportLargura - (padding * 2));
+    var alturaUtil = Math.max(1, mapaViewportAltura - (padding * 2));
+    var bbox = construirBboxPadronizado(minX, maxX, minY, maxY, larguraUtil, alturaUtil);
+
+    function desenharRetanguloArredondado(contexto, x, y, w, h, r) {
+        var rr = Math.min(r, w / 2, h / 2);
+        contexto.beginPath();
+        contexto.moveTo(x + rr, y);
+        contexto.arcTo(x + w, y, x + w, y + h, rr);
+        contexto.arcTo(x + w, y + h, x, y + h, rr);
+        contexto.arcTo(x, y + h, x, y, rr);
+        contexto.arcTo(x, y, x + w, y, rr);
+        contexto.closePath();
+    }
+
+    ctx.save();
+    desenharRetanguloArredondado(ctx, mapaViewportX, mapaViewportY, mapaViewportLargura, mapaViewportAltura, raioMapa);
+    ctx.clip();
+
+    var base = await desenharFundoSateliteTiles(ctx, bbox, largura, altura, padding, {
+        x: mapaViewportX,
+        y: mapaViewportY,
+        width: mapaViewportLargura,
+        height: mapaViewportAltura
+    });
+    if (!base.ok) {
+        console.warn('Nao foi possivel carregar tiles de satelite para o relatorio.');
+    }
+
+    function projetar(coord) {
+        var px = lonParaPixelMercator(coord[0], base.zoom);
+        var py = latParaPixelMercator(coord[1], base.zoom);
+        return {
+            x: base.offsetX + ((px - base.minPxX) * base.escala),
+            y: base.offsetY + ((py - base.minPxY) * base.escala)
+        };
+    }
+
+    // Slight dark veil to improve readability of polygon colors over satellite imagery.
+    ctx.fillStyle = 'rgba(21, 34, 16, 0.14)';
+    ctx.fillRect(0, 0, largura, altura);
+
+    ctx.beginPath();
+    desenharGeometria(ctx, geometry, projetar);
+    ctx.fillStyle = 'rgba(151, 204, 73, 0.42)';
+    ctx.strokeStyle = '#f7ffe8';
+    ctx.lineWidth = s(4);
+    ctx.fill('evenodd');
+    ctx.stroke();
+
+    var sobreposicoes = consultaProdes && Array.isArray(consultaProdes.geometriasSobrepostas)
+        ? consultaProdes.geometriasSobrepostas
+        : [];
+    var possuiAreaProdesNoMapa = sobreposicoes.length > 0;
+
+    if (sobreposicoes.length) {
+        sobreposicoes.forEach(function(item) {
+            if (!item || !item.geometry) return;
+            ctx.beginPath();
+            desenharGeometria(ctx, item.geometry, projetar);
+            ctx.fillStyle = 'rgba(123, 17, 17, 0.58)';
+            ctx.strokeStyle = 'rgba(78, 7, 7, 0.9)';
+            ctx.lineWidth = s(2);
+            ctx.fill('evenodd');
+            ctx.stroke();
+        });
+    }
+
+    // Legend inside the map frame for clearer interpretation in the PDF.
+    var legendaW = possuiAreaProdesNoMapa ? s(352) : s(252);
+    var legendaH = possuiAreaProdesNoMapa ? s(112) : s(88);
+    var legendaX = mapaViewportX + s(20);
+    var legendaY = mapaViewportY + mapaViewportAltura - legendaH - s(40);
+
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(247, 250, 246, 0.94)';
+    ctx.strokeStyle = 'rgba(31, 63, 34, 0.5)';
+    ctx.lineWidth = s(1.1);
+    desenharRetanguloArredondado(ctx, legendaX, legendaY, legendaW, legendaH, s(12));
+    ctx.fill();
+    ctx.stroke();
+
+    var legendaPaddingX = s(16);
+    var marcadorTam = s(13);
+    var gapTituloItens = s(18);
+    var gapEntreItens = s(16);
+    var alturaTitulo = s(24);
+    var alturaItem = s(20);
+    var totalConteudo = alturaTitulo + gapTituloItens + alturaItem + (possuiAreaProdesNoMapa ? (gapEntreItens + alturaItem) : 0);
+    var conteudoTop = legendaY + ((legendaH - totalConteudo) / 2);
+
+    ctx.fillStyle = '#1f3f22';
+    ctx.font = '500 ' + s(24).toFixed(1) + 'px Poppins, sans-serif';
+    ctx.fillText('Legenda', legendaX + legendaPaddingX, conteudoTop + alturaTitulo);
+
+    var item1CentroY = conteudoTop + alturaTitulo + gapTituloItens + (alturaItem / 2);
+    ctx.fillStyle = 'rgba(151, 204, 73, 0.85)';
+    ctx.fillRect(legendaX + legendaPaddingX, item1CentroY - (marcadorTam / 2), marcadorTam, marcadorTam);
+    ctx.strokeStyle = '#f7ffe8';
+    ctx.lineWidth = s(1);
+    ctx.strokeRect(legendaX + legendaPaddingX, item1CentroY - (marcadorTam / 2), marcadorTam, marcadorTam);
+
+    ctx.fillStyle = '#2e3c2f';
+    ctx.font = '500 ' + s(20).toFixed(1) + 'px Poppins, sans-serif';
+    ctx.fillText('Polígono do imóvel', legendaX + legendaPaddingX + s(20), item1CentroY + s(7));
+
+    if (possuiAreaProdesNoMapa) {
+        var item2CentroY = item1CentroY + alturaItem + gapEntreItens;
+        ctx.fillStyle = 'rgba(123, 17, 17, 0.85)';
+        ctx.fillRect(legendaX + legendaPaddingX, item2CentroY - (marcadorTam / 2), marcadorTam, marcadorTam);
+        ctx.strokeStyle = 'rgba(78, 7, 7, 0.95)';
+        ctx.lineWidth = s(1);
+        ctx.strokeRect(legendaX + legendaPaddingX, item2CentroY - (marcadorTam / 2), marcadorTam, marcadorTam);
+        ctx.fillStyle = '#2e3c2f';
+        ctx.fillText('Área desmatada PRODES', legendaX + legendaPaddingX + s(20), item2CentroY + s(7));
+    }
+    ctx.restore();
+
+    ctx.restore();
+
+    // Thicker inner frame plus outer rectangular frame around the full map.
+    ctx.save();
+    ctx.shadowColor = 'rgba(20, 34, 18, 0.34)';
+    ctx.shadowBlur = s(8);
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = s(2);
+    desenharRetanguloArredondado(ctx, mapaViewportX + s(1), mapaViewportY + s(1), mapaViewportLargura - s(2), mapaViewportAltura - s(2), raioMapa);
+    ctx.strokeStyle = 'rgba(28, 56, 30, 0.9)';
+    ctx.lineWidth = s(4);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    desenharRetanguloArredondado(ctx, mapaViewportX + s(5), mapaViewportY + s(5), mapaViewportLargura - s(10), mapaViewportAltura - s(10), Math.max(s(3), raioMapa - s(2)));
+    ctx.strokeStyle = 'rgba(241, 248, 236, 0.92)';
+    ctx.lineWidth = s(2.2);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(mapaViewportX - s(7), mapaViewportY - s(7), mapaViewportLargura + s(14), mapaViewportAltura + s(14));
+    ctx.strokeStyle = 'rgba(32, 57, 34, 0.72)';
+    ctx.lineWidth = s(2.6);
+    ctx.stroke();
+    ctx.restore();
+
+    return {
+        dataUrl: canvas.toDataURL('image/png'),
+        mapaInicioX: base.offsetX,
+        mapaLargura: base.desenhoLargura
+    };
+}
+
+function carregarImagemDataUrl(url) {
+    return fetch(url)
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error('Falha ao baixar imagem: ' + response.status);
+            }
+            return response.blob();
+        })
+        .then(function(blob) {
+            return new Promise(function(resolve, reject) {
+                var reader = new FileReader();
+                reader.onloadend = function() {
+                    resolve(reader.result);
+                };
+                reader.onerror = function() {
+                    reject(new Error('Falha ao converter imagem para Data URL.'));
+                };
+                reader.readAsDataURL(blob);
+            });
+        });
+}
+
+async function obterLogoRelatorioDataUrl() {
+    if (logoRelatorioDataUrl) return logoRelatorioDataUrl;
+
+    try {
+        logoRelatorioDataUrl = await carregarImagemDataUrl(logoRelatorioUrl);
+        return logoRelatorioDataUrl;
+    } catch (error) {
+        console.warn('Nao foi possivel carregar a logo do relatorio.', error);
+        return null;
+    }
+}
+
+function normalizarChaveParaRelatorio(chave) {
+    return String(chave || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '');
+}
+
+function ehChaveAmbientalCarRelatorio(chave) {
+    var chaveNorm = normalizarChaveParaRelatorio(chave);
+    return chaveNorm === 'codigocar' || chaveNorm === 'situacacar' || chaveNorm === 'situacaocar';
+}
+
+function tituloCasoRelatorio(texto) {
+    return String(texto || '').replace(/\b\w/g, function(letra) {
+        return letra.toUpperCase();
+    });
+}
+
+function obterMetaCampoRelatorio(chave) {
+    var chaveNorm = normalizarChaveParaRelatorio(chave);
+    var metadados = {
+        id: { ocultar: true, rotulo: 'ID' },
+        nmimovel: { rotulo: 'Nome do Imóvel' },
+        name: { rotulo: 'Nome do Imóvel' },
+        nome: { rotulo: 'Nome do Imóvel' },
+        matricula: { rotulo: 'Matrícula' },
+        ccir: { rotulo: 'CCIR' },
+        cib: { rotulo: 'CIB' },
+        codigocar: { rotulo: 'Código CAR' },
+        situacacar: { rotulo: 'Situação CAR' },
+        situacaocar: { rotulo: 'Situação CAR' },
+        declarante: { rotulo: 'Declarante' },
+        area: { rotulo: 'Área (ha)' },
+        areaha: { rotulo: 'Área (ha)' },
+        municipio: { rotulo: 'Município' },
+        estado: { rotulo: 'Estado' }
+    };
+
+    if (metadados[chaveNorm]) {
+        return metadados[chaveNorm];
+    }
+
+    var rotuloFallback = String(chave || '')
+        .replace(/_/g, ' ')
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .trim();
+
+    return {
+        rotulo: tituloCasoRelatorio(rotuloFallback)
+    };
+}
+
+function montarDadosRelatorioPorCategoria(props) {
+    var fundiarios = [];
+    var ambientais = [];
+
+    Object.keys(props || {}).forEach(function(chave) {
+        var valor = props[chave];
+        if (valor === null || valor === undefined || valor === '') return;
+
+        var meta = obterMetaCampoRelatorio(chave);
+        if (meta.ocultar) return;
+
+        var item = {
+            chave: meta.rotulo || String(chave),
+            valor: (typeof valor === 'object') ? JSON.stringify(valor) : String(valor)
+        };
+
+        if (ehChaveAmbientalCarRelatorio(chave)) {
+            ambientais.push(item);
+        } else {
+            fundiarios.push(item);
+        }
+    });
+
+    return {
+        fundiarios: fundiarios,
+        ambientais: ambientais
+    };
+}
+
+async function gerarRelatorio() {
+    if (!selectedFeatureProps) {
+        alert('Selecione um imóvel no mapa antes de gerar o relatório.');
+        return;
+    }
+
+    var btn = document.getElementById('btn-gerar-relatorio');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = 'Gerando...';
+    }
+
+    try {
+        var jsPDFRef = window.jspdf && window.jspdf.jsPDF;
+        if (!jsPDFRef) throw new Error('Biblioteca jsPDF não carregada.');
+
+        var doc = new jsPDFRef({ unit: 'pt', format: 'a4' });
+        var temPoppins = await carregarPoppinsNoPDF(doc);
+        if (!temPoppins) {
+            throw new Error('Não foi possível carregar a fonte Poppins para o relatório.');
+        }
+        doc.setFont('Poppins', 'normal');
+
+        var props = selectedFeatureProps || {};
+        var nomeImovel = selectedFeatureName || valorCampo(props, ['NM_Imovel', 'Name', 'name', 'nome'], 'Imóvel sem nome');
+        var secoesDados = montarDadosRelatorioPorCategoria(props);
+        var dadosFundiarios = secoesDados.fundiarios;
+        var dadosAmbientais = secoesDados.ambientais;
+
+        var dadosParaAnalise = {};
+        dadosFundiarios.forEach(function(item) {
+            dadosParaAnalise[item.chave] = item.valor;
+        });
+        dadosAmbientais.forEach(function(item) {
+            dadosParaAnalise[item.chave] = item.valor;
+        });
+        dadosParaAnalise['Nome do imóvel'] = nomeImovel;
+
+        var geojsonSelecionado = selectedFeatureLayer && selectedFeatureLayer.toGeoJSON ? selectedFeatureLayer.toGeoJSON() : null;
+        var geometriaImovel = geojsonSelecionado && geojsonSelecionado.geometry ? geojsonSelecionado.geometry : null;
+        var ccirImovelSelecionado = valorCampoNormalizado(props, ['CCIR', 'ccir'], 'Não informado');
+        var relacionamentosConformidade = detectarRelacionamentosConformidade(geojsonSelecionado, colecaoImoveisFeatures);
+        var resumoConformidade = {
+            ccirImovelSelecionado: ccirImovelSelecionado,
+            totalImoveisContinuos: relacionamentosConformidade.continuidades.length,
+            imoveisContinuos: relacionamentosConformidade.continuidades,
+            totalInconsistencias: relacionamentosConformidade.inconsistencias.length,
+            inconsistencias: relacionamentosConformidade.inconsistencias
+        };
+        var avisosConformidade = await gerarAnaliseConformidadeIA(resumoConformidade);
+        var turfRef = window.turf;
+        var areaTotalImovelHa = (turfRef && geometriaImovel)
+            ? (turfRef.area(turfRef.feature(geometriaImovel)) / 10000)
+            : Number(valorCampo(props, ['__rea__ha_', 'area', 'Área (ha)', 'area_ha'], 0));
+
+        var consultaProdes = await consultarDesmatamentoProdesNoImovel(geometriaImovel);
+        var areaSobrepostaProdesHa = Number(consultaProdes && consultaProdes.areaSobrepostaEstimHa);
+        var possuiIntersecaoProdes = isFinite(areaSobrepostaProdesHa) && areaSobrepostaProdesHa > 0;
+        var pageWidth = doc.internal.pageSize.getWidth();
+        var y = 0;
+        var fatorEspacamentoTitulo = 1.5;
+        var espacamentoLetrasParagrafo = 0.22;
+
+        var logoDataUrl = await obterLogoRelatorioDataUrl();
+
+        function desenharCabecalhoRelatorio() {
+            doc.setFillColor(31, 44, 15);
+            doc.rect(0, 0, pageWidth, 78, 'F');
+
+            if (logoDataUrl) {
+                var formatoLogo = logoDataUrl.indexOf('data:image/jpeg') === 0 ? 'JPEG' : 'PNG';
+                var propsLogo = doc.getImageProperties(logoDataUrl);
+                var maxLogoWidth = 170;
+                var maxLogoHeight = 48;
+                var escalaLogo = Math.min(maxLogoWidth / propsLogo.width, maxLogoHeight / propsLogo.height);
+                var logoWidth = propsLogo.width * escalaLogo;
+                var logoHeight = propsLogo.height * escalaLogo;
+                var logoX = pageWidth - 42 - logoWidth;
+                var logoY = (78 - logoHeight) / 2;
+                doc.addImage(logoDataUrl, formatoLogo, logoX, logoY, logoWidth, logoHeight, undefined, 'FAST');
+            }
+
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(20);
+            doc.text('Gestão Fundiária', 42, 49);
+        }
+
+        desenharCabecalhoRelatorio();
+
+        y = 112;
+        doc.setTextColor(31, 44, 15);
+        doc.setFontSize(18);
+        doc.text(nomeImovel, 42, y);
+
+        y += 24;
+        doc.setFontSize(10);
+        doc.setTextColor(90, 110, 90);
+        doc.text('Data de geração: ' + new Date().toLocaleString('pt-BR'), 42, y);
+
+        y += 24;
+        doc.setDrawColor(168, 205, 105);
+        doc.setLineWidth(1.1);
+        doc.line(42, y, pageWidth - 42, y);
+
+        function garantirEspaco(alturaNecessaria) {
+            if (y + alturaNecessaria <= 780) return;
+            doc.addPage();
+            y = 112;
+        }
+
+        function garantirTituloComConteudo(alturaTitulo, alturaConteudoMinima) {
+            garantirEspaco(alturaTitulo + alturaConteudoMinima);
+        }
+
+        function renderTextoJustificado(linhas, x, largura, alturaLinha) {
+            doc.setCharSpace(espacamentoLetrasParagrafo);
+            linhas.forEach(function(linha, idx) {
+                var isUltima = idx === linhas.length - 1;
+                var palavras = linha.trim().split(' ');
+                if (isUltima || palavras.length <= 1 || linha.trim() === '') {
+                    doc.text(linha, x, y);
+                } else {
+                    var larguraPalavras = palavras.reduce(function(soma, p) { return soma + doc.getTextWidth(p); }, 0);
+                    var espaco = (largura - larguraPalavras) / (palavras.length - 1);
+                    var cx = x;
+                    palavras.forEach(function(palavra) {
+                        doc.text(palavra, cx, y);
+                        cx += doc.getTextWidth(palavra) + espaco;
+                    });
+                }
+                y += alturaLinha;
+            });
+            doc.setCharSpace(0);
+        }
+
+        function renderSecaoDados(tituloSecao, itens) {
+            garantirTituloComConteudo(24, 38);
+            garantirEspaco(70 + (itens.length * 28));
+
+            doc.setFillColor(240, 245, 237);
+            doc.roundedRect(42, y - 14, pageWidth - 84, 24, 5, 5, 'F');
+            doc.setFontSize(12);
+            doc.setTextColor(31, 44, 15);
+            doc.text(tituloSecao, 52, y + 2);
+            y += Math.round(26 * fatorEspacamentoTitulo);
+
+            itens.forEach(function(item) {
+                garantirEspaco(28);
+
+                doc.setFillColor(250, 252, 249);
+                doc.roundedRect(42, y - 13, pageWidth - 84, 22, 4, 4, 'F');
+                doc.setDrawColor(225, 232, 223);
+                doc.roundedRect(42, y - 13, pageWidth - 84, 22, 4, 4, 'S');
+
+                doc.setFontSize(10);
+                doc.setTextColor(95, 110, 95);
+                doc.text(item.chave, 52, y + 1);
+
+                var valor = String(item.valor);
+                var valorQuebrado = doc.splitTextToSize(valor, 250);
+                doc.setTextColor(30, 40, 35);
+                doc.text(valorQuebrado, pageWidth - 52, y + 1, { align: 'right' });
+
+                y += Math.max(24, 12 * valorQuebrado.length + 8);
+            });
+
+            y += 6;
+        }
+
+        function renderSecaoAnalitica(tituloSecao, paragrafos) {
+            paragrafos = Array.isArray(paragrafos) ? paragrafos.filter(function(p) { return String(p || '').trim() !== ''; }) : [];
+            if (!paragrafos.length) {
+                paragrafos = ['Nenhuma inconsistência de conformidade foi identificada entre áreas em continuidade para o imóvel selecionado.'];
+            }
+
+            var alturaMinima = 24;
+            paragrafos.forEach(function(texto) {
+                var conteudo = String(texto || '').replace(/\s*\n+\s*/g, ' ').trim();
+                var linhasPrevistas = doc.splitTextToSize(conteudo, pageWidth - 84);
+                alturaMinima += (linhasPrevistas.length * 16) + 12;
+            });
+
+            garantirTituloComConteudo(18, alturaMinima);
+
+            doc.setFontSize(13);
+            doc.setTextColor(31, 44, 15);
+            doc.text(tituloSecao, 42, y);
+            y += Math.round(22 * fatorEspacamentoTitulo);
+
+            paragrafos.forEach(function(texto, index) {
+                var conteudo = String(texto || '').replace(/\s*\n+\s*/g, ' ').trim();
+                var linhas = doc.splitTextToSize(conteudo, pageWidth - 84);
+                garantirEspaco((linhas.length * 16) + 8);
+
+                doc.setFontSize(11);
+                doc.setTextColor(30, 40, 35);
+                renderTextoJustificado(linhas, 42, pageWidth - 84, 16);
+
+                if (index < paragrafos.length - 1) {
+                    y += 8;
+                }
+            });
+
+            y += 2;
+        }
+
+        y += 24;
+        garantirTituloComConteudo(18, 36);
+        doc.setFontSize(13);
+        doc.setTextColor(31, 44, 15);
+        doc.text('Dados do Quadro de Informações', 42, y);
+        y += Math.round(20 * fatorEspacamentoTitulo);
+
+        renderSecaoDados('Dados Fundiários', dadosFundiarios);
+        y += 10;
+        renderSecaoAnalitica('Análise de Conformidade', avisosConformidade);
+        y += 22;
+        renderSecaoDados('Dados Ambientais', dadosAmbientais);
+
+        y += 8;
+
+        if (possuiIntersecaoProdes) {
+            var resumoAmbientalIA = {
+                areaTotalHa: areaTotalImovelHa,
+                prodes: consultaProdes,
+                caso: consultaProdes.temDesmatamento
+                    ? 'com_desmatamento_prodes_desde_2008'
+                    : 'sem_desmatamento_prodes_desde_2008'
+            };
+            var interpretacaoAmbiental = await gerarInterpretacaoProdesIA(resumoAmbientalIA);
+
+            var areaTotalTexto = formatarNumeroPtBr(areaTotalImovelHa || 0, 2);
+            var areaDesmatadaTexto = consultaProdes.disponivel
+                ? formatarNumeroPtBr(consultaProdes.areaSobrepostaEstimHa || 0, 2)
+                : 'Indisponível';
+            var percentualDesmatadoTexto = consultaProdes.disponivel
+                ? formatarNumeroPtBr(consultaProdes.percentualImovel || 0, 2) + '%'
+                : 'Indisponível';
+            var anosCodigosTexto = (consultaProdes.codigosDetectados && consultaProdes.codigosDetectados.length)
+                ? consultaProdes.codigosDetectados.map(function(c) { return Number(String(c).replace(/^d/i, '')); }).filter(function(n) { return isFinite(n); }).join(', ')
+                : 'Não identificado';
+
+            renderSecaoDados('Análise Ambiental', [
+                { chave: 'Área total do imóvel (ha)', valor: areaTotalTexto },
+                { chave: 'Total de áreas desmatadas (ha)', valor: areaDesmatadaTexto },
+                { chave: 'Percentual do imóvel desmatado', valor: percentualDesmatadoTexto },
+                { chave: 'Anos com ocorrência de desmatamento', valor: anosCodigosTexto },
+                { chave: 'Registros de desmatamento detectados', valor: String(consultaProdes.totalPoligonosIntersectantes || 0) }
+            ]);
+
+            doc.setFontSize(11);
+            var interpretacaoQuebrada = doc.splitTextToSize(interpretacaoAmbiental, pageWidth - 84);
+            y += 8;
+            garantirTituloComConteudo(18, (interpretacaoQuebrada.length * 16) + 24);
+
+            doc.setFontSize(13);
+            doc.setTextColor(31, 44, 15);
+            doc.text('Levantamento PRODES', 42, y);
+
+            y += Math.round(22 * fatorEspacamentoTitulo);
+            doc.setFontSize(11);
+            doc.setTextColor(30, 40, 35);
+            renderTextoJustificado(interpretacaoQuebrada, 42, pageWidth - 84, 16);
+
+        }
+
+        var renderMapa = await gerarImagemPoligonoSelecionado(consultaProdes);
+        if (renderMapa && renderMapa.dataUrl) {
+            if (possuiIntersecaoProdes) {
+                doc.addPage();
+                y = 112;
+            } else {
+                y += 16;
+            }
+            var margemLateralMapa = 58;
+            var imgMaxW = pageWidth - (margemLateralMapa * 2);
+            var alturaTituloMapa = Math.round(14 * fatorEspacamentoTitulo) + 10;
+            var alturaMinimaMapa = 170;
+            var alturaDisponivelPagina = 780 - y - alturaTituloMapa - 12;
+
+            if (alturaDisponivelPagina < alturaMinimaMapa) {
+                doc.addPage();
+                y = 112;
+                alturaDisponivelPagina = 780 - y - alturaTituloMapa - 12;
+            }
+
+            var imgMaxH = Math.min(320, Math.max(alturaMinimaMapa, alturaDisponivelPagina));
+            var propsImagem = doc.getImageProperties(renderMapa.dataUrl);
+            var escalaImagem = Math.min(imgMaxW / propsImagem.width, imgMaxH / propsImagem.height);
+            var imgW = propsImagem.width * escalaImagem;
+            var imgH = propsImagem.height * escalaImagem;
+            garantirEspaco(imgH + alturaTituloMapa + 8);
+
+            doc.setFontSize(13);
+            doc.setTextColor(31, 44, 15);
+            doc.text('Área do Imóvel', 42, y);
+
+            y += Math.round(14 * fatorEspacamentoTitulo);
+            var imgX = margemLateralMapa + ((imgMaxW - imgW) / 2);
+            var imgY = y;
+            doc.addImage(renderMapa.dataUrl, 'PNG', imgX, imgY, imgW, imgH, undefined, 'FAST');
+            y += imgH;
+        }
+
+        var totalPages = doc.internal.getNumberOfPages();
+        for (var p = 1; p <= totalPages; p++) {
+            doc.setPage(p);
+            desenharCabecalhoRelatorio();
+            doc.setFontSize(9);
+            doc.setTextColor(100, 110, 100);
+            doc.text('Gestão Fundiária', 42, 820);
+            doc.text('Página ' + p + ' de ' + totalPages, pageWidth - 100, 820);
+        }
+
+        var nomeArquivo = 'relatorio_' + limparNomeArquivo(nomeImovel || 'imovel') + '.pdf';
+        doc.save(nomeArquivo);
+    } catch (error) {
+        console.error('Erro ao gerar relatório PDF:', error);
+        alert('Não foi possível gerar o relatório PDF.\n' + (error.message || error));
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = 'Gerar Relatório';
+        }
+    }
+}
+
+var LOGIN_MAX_TENTATIVAS = 5;
+var sessaoAutenticada = false;
+
+function normalizarUsuarioLogin(usuario) {
+    return String(usuario || '').trim().toLowerCase();
+}
+
+function obterBotaoLogin() {
+    return document.getElementById('login-submit-btn');
+}
+
+function alternarVisibilidadeSenha() {
+    var senhaInput = document.getElementById('pass');
+    var toggleBtn = document.getElementById('toggle-pass');
+    if (!senhaInput || !toggleBtn) return;
+
+    var mostrando = senhaInput.type === 'text';
+    toggleBtn.classList.add('is-active');
+
+    setTimeout(function() {
+        senhaInput.type = mostrando ? 'password' : 'text';
+        toggleBtn.innerHTML = mostrando
+            ? '<i class="fas fa-eye"></i>'
+            : '<i class="fas fa-eye-slash"></i>';
+        toggleBtn.setAttribute('aria-label', mostrando ? 'Mostrar senha' : 'Ocultar senha');
+        toggleBtn.setAttribute('title', mostrando ? 'Mostrar senha' : 'Ocultar senha');
+    }, 70);
+
+    setTimeout(function() {
+        toggleBtn.classList.remove('is-active');
+    }, 220);
+}
+
+function atualizarStatusLogin(mensagem, tipo) {
+    var statusEl = document.getElementById('login-status');
+    if (!statusEl) return;
+
+    statusEl.textContent = mensagem || '';
+    statusEl.style.color = tipo === 'sucesso'
+        ? '#d8ebb6'
+        : (tipo === 'alerta' ? '#ffe9a8' : '#ffd6d6');
+}
+
+function usuarioEstaAutenticado() {
+    return Boolean(sessaoAutenticada);
+}
+
+async function requisicaoJson(url, opcoes) {
+    var config = Object.assign({
+        credentials: 'same-origin',
+        headers: {
+            'Accept': 'application/json'
+        }
+    }, opcoes || {});
+
+    if (config.body) {
+        config.headers = Object.assign({}, config.headers || {}, {
+            'Content-Type': 'application/json'
+        });
+    }
+
+    var response = await fetch(url, config);
+    var texto = await response.text();
+    var dados = {};
+
+    if (texto) {
+        try {
+            dados = JSON.parse(texto);
+        } catch (error) {
+            dados = { message: texto };
+        }
+    }
+
+    if (!response.ok) {
+        var erro = new Error(dados.message || ('Falha na requisição: ' + response.status));
+        erro.status = response.status;
+        erro.data = dados;
+        throw erro;
+    }
+
+    return dados;
+}
+
+function exibirTelaLogin() {
+    var telaLogin = document.getElementById('login');
+    var telaMapa = document.getElementById('mapa-container');
+    var botaoEntrar = obterBotaoLogin();
+
+    sessaoAutenticada = false;
+
+    if (telaLogin) {
+        telaLogin.classList.remove('carregando');
+        telaLogin.style.display = 'flex';
+    }
+
+    if (telaMapa) {
+        telaMapa.style.display = 'none';
+    }
+
+    if (botaoEntrar) {
+        botaoEntrar.disabled = false;
+    }
+}
+
+function abrirMapaAutenticado() {
+    var telaLogin = document.getElementById('login');
+    var telaMapa = document.getElementById('mapa-container');
+
+    sessaoAutenticada = true;
+
+    if (!telaLogin || !telaMapa) {
+        return;
+    }
+
+    telaLogin.style.display = 'none';
+    telaMapa.style.display = 'flex';
+
+    if (!mapaInicializado) {
+        iniciarMapa();
+        initSectionToggle();
+    }
+}
+
+async function verificarSessaoServidor() {
+    try {
+        var dados = await requisicaoJson('/api/session');
+        if (dados && dados.authenticated) {
+            atualizarStatusLogin('Sessão ativa. Carregando mapa...', 'sucesso');
+            abrirMapaAutenticado();
+            return;
+        }
+    } catch (error) {
+        console.warn('Não foi possível verificar a sessão atual.', error);
+    }
+
+    exibirTelaLogin();
+}
+
+async function encerrarSessao() {
+    try {
+        await requisicaoJson('/api/logout', { method: 'POST' });
+    } catch (error) {
+        console.warn('Falha ao encerrar a sessão no servidor.', error);
+    }
+
+    var usuarioInput = document.getElementById('user');
+    var senhaInput = document.getElementById('pass');
+    if (usuarioInput) usuarioInput.value = '';
+    if (senhaInput) senhaInput.value = '';
+
+    atualizarStatusLogin('', 'alerta');
+    exibirTelaLogin();
+}
+
+function prepararEventosLogin() {
+    var campos = [document.getElementById('user'), document.getElementById('pass')];
+
+    campos.forEach(function(campo) {
+        if (!campo || campo.dataset.loginReady === 'true') return;
+
+        campo.dataset.loginReady = 'true';
+        campo.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                login();
+            }
+        });
+    });
+
+    verificarSessaoServidor();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', prepararEventosLogin);
+} else {
+    prepararEventosLogin();
+}
+
+async function login() {
+    var usuarioInput = document.getElementById('user');
+    var senhaInput = document.getElementById('pass');
+    var usuario = normalizarUsuarioLogin(usuarioInput ? usuarioInput.value : '');
+    var senha = senhaInput ? senhaInput.value : '';
+    var botaoEntrar = obterBotaoLogin();
+    var telaLogin = document.getElementById('login');
+
+    if (!usuario || !senha) {
+        atualizarStatusLogin('Informe usuário e senha para continuar.', 'alerta');
+        alert('Informe usuário e senha.');
+        return;
+    }
+
+    try {
+        if (botaoEntrar) {
+            botaoEntrar.disabled = true;
+        }
+
+        atualizarStatusLogin('', 'alerta');
+
+        var resposta = await requisicaoJson('/api/login', {
+            method: 'POST',
+            body: JSON.stringify({
+                usuario: usuario,
+                senha: senha
+            })
+        });
+
+        if (senhaInput) {
+            senhaInput.value = '';
+        }
+
+        atualizarStatusLogin('', 'sucesso');
+        if (telaLogin) {
+            telaLogin.classList.add('carregando');
+        }
+
+        setTimeout(function() {
+            abrirMapaAutenticado();
+        }, 3000);
+    } catch (error) {
+        if (botaoEntrar) {
+            botaoEntrar.disabled = false;
+        }
+        if (senhaInput) {
+            senhaInput.value = '';
+        }
+
+        console.error('Falha ao validar login no backend:', error);
+
+        var mensagem = error.message || 'Não foi possível validar o acesso.';
+        if (error.data && typeof error.data.remainingAttempts === 'number' && error.status === 401) {
+            var usadas = LOGIN_MAX_TENTATIVAS - Number(error.data.remainingAttempts || 0);
+            mensagem += ' Tentativa ' + usadas + ' de ' + LOGIN_MAX_TENTATIVAS + '.';
+        }
+
+        atualizarStatusLogin(mensagem, error.status === 429 ? 'alerta' : 'erro');
+        alert(mensagem);
+    }
+}
+
+function iniciarMapa() {
+    if (!usuarioEstaAutenticado()) {
+        atualizarStatusLogin('Faça login antes de acessar o mapa.', 'alerta');
+        return;
+    }
+
+    if (mapaInicializado) {
+        return;
+    }
+    mapaInicializado = true;
+
+    var map = L.map('map', { zoomControl: false }).setView([-32.03, -52.10], 13);
+    setTimeout(function() { map.invalidateSize(); }, 100);
+    var tileRenderOptions = {
+        detectRetina: false,
+        keepBuffer: 1,
+        updateWhenIdle: true,
+        updateWhenZooming: false
+    };
+
+    // Adicionar controle de zoom na parte inferior direita
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    // 🗺️ Ruas
+    var street = L.tileLayer(
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        Object.assign({
+            attribution: '© OpenStreetMap',
+            maxNativeZoom: 17,
+            maxZoom: 19
+        }, tileRenderOptions)
+    );
+
+    // 🛰️ Satélite
+    var satellite = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        Object.assign({
+            attribution: 'Tiles © Esri',
+            maxNativeZoom: 17,
+            maxZoom: 19
+        }, tileRenderOptions)
+    ).addTo(map);
+
+    var googleHybrid = L.tileLayer(
+        'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+        Object.assign({
+            attribution: 'Mapa © Google',
+            maxNativeZoom: 18,
+            maxZoom: 19
+        }, tileRenderOptions)
+    );
+
+    function registrarFallback(layer, nomeCamada) {
+        var fallbackAplicado = false;
+
+        layer.on('tileerror', function() {
+            if (fallbackAplicado) {
+                return;
+            }
+
+            fallbackAplicado = true;
+            console.warn('Falha ao carregar tiles da camada ' + nomeCamada + '. Alternando para Street.');
+
+            if (map.hasLayer(layer)) {
+                map.removeLayer(layer);
+            }
+
+            if (!map.hasLayer(street)) {
+                street.addTo(map);
+            }
+        });
+    }
+
+    registrarFallback(satellite, 'Satellite');
+    registrarFallback(googleHybrid, 'Google Hybrid');
+
+    var baseMaps = {
+        "Satellite": satellite,
+        "Street": street,
+        "Google Hybrid": googleHybrid
+    };
+
+    var layerControl = L.control.layers(baseMaps, {}).addTo(map);
+
+    var mapSearchInput = document.getElementById('map-search-input');
+    var mapSearchBtn = document.getElementById('map-search-btn');
+    var mapSearchResults = document.getElementById('map-search-results');
+
+    function carregarGeojson(url, nomeCamada) {
+        return fetch(url, {
+            credentials: 'same-origin'
+        })
+            .then(function(response) {
+                if (response.status === 401) {
+                    sessaoAutenticada = false;
+                    exibirTelaLogin();
+                    atualizarStatusLogin('Sua sessão expirou. Faça login novamente.', 'alerta');
+                    throw new Error('Sessão expirada. Faça login novamente.');
+                }
+
+                if (!response.ok) {
+                    throw new Error('Falha ao carregar ' + nomeCamada + ': ' + response.status);
+                }
+                return response.json();
+            });
+    }
+
+    function normalizarChavePropriedade(chave) {
+        return String(chave || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '');
+    }
+
+    function ehChaveAmbientalCar(chave) {
+        var chaveNorm = normalizarChavePropriedade(chave);
+        return chaveNorm === 'codigocar' || chaveNorm === 'situacacar' || chaveNorm === 'situacaocar';
+    }
+
+    var metadadosCampos = {
+        id: { ocultar: true, rotulo: 'ID', icone: 'fa-hashtag' },
+        nmimovel: { rotulo: 'Nome do Imóvel', icone: 'fa-map-marker-alt' },
+        name: { rotulo: 'Nome do Imóvel', icone: 'fa-map-marker-alt' },
+        nome: { rotulo: 'Nome do Imóvel', icone: 'fa-map-marker-alt' },
+        matricula: { rotulo: 'Matrícula', icone: 'fa-border-all' },
+        ccir: { rotulo: 'CCIR', icone: 'fa-id-card' },
+        cib: { rotulo: 'CIB', icone: 'fa-file-signature' },
+        codigocar: { rotulo: 'Código CAR', icone: 'fa-leaf' },
+        situacacar: { rotulo: 'Situação CAR', icone: 'fa-seedling' },
+        situacaocar: { rotulo: 'Situação CAR', icone: 'fa-seedling' },
+        declarante: { rotulo: 'Declarante', icone: 'fa-user' },
+        area: { rotulo: 'Área (ha)', icone: 'fa-ruler-combined' },
+        areaha: { rotulo: 'Área (ha)', icone: 'fa-ruler-combined' },
+        municipio: { rotulo: 'Município', icone: 'fa-city' },
+        estado: { rotulo: 'Estado', icone: 'fa-flag' }
+    };
+
+    function tituloCaso(texto) {
+        return String(texto || '').replace(/\b\w/g, function(letra) {
+            return letra.toUpperCase();
+        });
+    }
+
+    function obterMetaCampo(chave) {
+        var chaveNorm = normalizarChavePropriedade(chave);
+        var meta = metadadosCampos[chaveNorm] || null;
+        if (meta) {
+            return meta;
+        }
+
+        var rotuloFallback = String(chave || '')
+            .replace(/_/g, ' ')
+            .replace(/([a-z])([A-Z])/g, '$1 $2')
+            .trim();
+
+        return {
+            rotulo: tituloCaso(rotuloFallback),
+            icone: 'fa-file-alt'
+        };
+    }
+
+    function coordenadaPareceUTM(coord) {
+        if (!Array.isArray(coord) || coord.length < 2) return false;
+        var x = Number(coord[0]);
+        var y = Number(coord[1]);
+        if (!isFinite(x) || !isFinite(y)) return false;
+        return Math.abs(x) > 180 || Math.abs(y) > 90;
+    }
+
+    function transformarCoordenadasRecursivo(coords, transformador) {
+        if (!Array.isArray(coords)) return coords;
+        if (coords.length >= 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+            return transformador(coords);
+        }
+        return coords.map(function(item) {
+            return transformarCoordenadasRecursivo(item, transformador);
+        });
+    }
+
+    function normalizarGeoJsonParaLeaflet(geojson) {
+        if (!geojson || typeof geojson !== 'object') return geojson;
+
+        var nomeCrs = geojson.crs && geojson.crs.properties && geojson.crs.properties.name
+            ? String(geojson.crs.properties.name)
+            : '';
+        var usa31982 = /31982/.test(nomeCrs);
+
+        if (typeof proj4 === 'undefined') {
+            return geojson;
+        }
+
+        proj4.defs('EPSG:31982', '+proj=utm +zone=22 +south +datum=SIRGAS2000 +units=m +no_defs');
+
+        function converterCoord(coord) {
+            if (!coordenadaPareceUTM(coord) && !usa31982) {
+                return coord;
+            }
+            var convertido = proj4('EPSG:31982', 'EPSG:4326', [Number(coord[0]), Number(coord[1])]);
+            return [convertido[0], convertido[1]];
+        }
+
+        var copia = JSON.parse(JSON.stringify(geojson));
+
+        if (copia.type === 'FeatureCollection' && Array.isArray(copia.features)) {
+            copia.features.forEach(function(feature) {
+                if (!feature || !feature.geometry || !feature.geometry.coordinates) return;
+                feature.geometry.coordinates = transformarCoordenadasRecursivo(feature.geometry.coordinates, converterCoord);
+            });
+        } else if (copia.type === 'Feature' && copia.geometry && copia.geometry.coordinates) {
+            copia.geometry.coordinates = transformarCoordenadasRecursivo(copia.geometry.coordinates, converterCoord);
+        } else if (copia.coordinates) {
+            copia.coordinates = transformarCoordenadasRecursivo(copia.coordinates, converterCoord);
+        }
+
+        if (copia.crs) {
+            delete copia.crs;
+        }
+
+        return copia;
+    }
+
+    carregarGeojson('teste.geojson', 'imoveis')
+      .then(function(data) {
+          data = normalizarGeoJsonParaLeaflet(data);
+          if (data && data.type === 'FeatureCollection' && Array.isArray(data.features)) {
+              colecaoImoveisFeatures = data.features;
+          } else if (data && data.type === 'Feature') {
+              colecaoImoveisFeatures = [data];
+          } else {
+              colecaoImoveisFeatures = [];
+          }
+          var areaLayer = L.geoJSON(data, {
+              style: function(feature) {
+                  return {color: '#ffffff', weight: 3, opacity: 1, fillColor: '#b7ff00', fillOpacity: 0.2};
+              },
+              onEachFeature: function(feature, layer) {
+                  layer.on('mouseover', function() {
+                      this.setStyle({
+                          weight: 5,
+                          color: '#f7ffe8',
+                          fillColor: '#d6ff7a',
+                          fillOpacity: 0.34
+                      });
+
+                      if (this._path) {
+                          L.DomUtil.addClass(this._path, 'imovel-hover');
+                      }
+
+                      if (this.bringToFront) {
+                          this.bringToFront();
+                      }
+                  });
+
+                  layer.on('mouseout', function() {
+                      if (this._path) {
+                          L.DomUtil.removeClass(this._path, 'imovel-hover');
+                      }
+                      areaLayer.resetStyle(this);
+                  });
+
+                  layer.on('click', function(e) {
+                      var props = feature.properties || {};
+
+                      var formatItem = function(icon, label, value) {
+                          if (value === null || value === undefined || value === '') return '';
+                          var valorTexto = (typeof value === 'object') ? JSON.stringify(value) : String(value);
+                          return '<div class="section-content-item">'
+                               + '<i class="fas ' + icon + '"></i>'
+                               + '<div class="section-content-text">'
+                               + '<span class="section-content-label">' + label + '</span>'
+                               + '<span class="section-content-value">' + valorTexto + '</span>'
+                               + '</div></div>';
+                      };
+
+                      var fundiariosItems = '';
+                      var ambientaisItems = '';
+
+                      Object.keys(props).forEach(function(chave) {
+                          var valor = props[chave];
+                          if (valor === null || valor === undefined || valor === '') return;
+
+                          var meta = obterMetaCampo(chave);
+                          if (meta.ocultar) return;
+
+                          if (ehChaveAmbientalCar(chave)) {
+                              ambientaisItems += formatItem(meta.icone || 'fa-leaf', meta.rotulo || chave, valor);
+                          } else {
+                              fundiariosItems += formatItem(meta.icone || 'fa-file-alt', meta.rotulo || chave, valor);
+                          }
+                      });
+
+                      var imovelName = props.NM_Imovel || props.Name || props.name || props.nome || 'Nome do Imóvel';
+                      selectedFeatureProps = props;
+                      selectedFeatureName = imovelName;
+                      selectedFeatureLayer = layer;
+                      
+                      var painelTitle = document.getElementById('painel-title-text');
+                      painelTitle.innerText = imovelName;
+
+                      var reportBtn = document.getElementById('btn-gerar-relatorio');
+                      if (reportBtn) {
+                          reportBtn.style.display = 'inline-block';
+                      }
+
+                      var fundiariosContent = document.getElementById('section-fundiarios');
+                      var ambientaisContent = document.getElementById('section-ambientais');
+
+                      fundiariosContent.innerHTML = fundiariosItems || '<p>Sem dados fundiários disponíveis</p>';
+                      ambientaisContent.innerHTML = ambientaisItems || '<p>Sem dados ambientais disponíveis</p>';
+
+                      fundiariosContent.classList.remove('hidden');
+                      ambientaisContent.classList.add('hidden');
+                      document.querySelector('#conteudo-fundiarios .section-header').classList.add('open');
+                      document.querySelector('#conteudo-ambientais .section-header').classList.remove('open');
+
+                      var painel = document.getElementById('painel');
+                      painel.classList.remove('inativo');
+                      painel.classList.add('ativo');
+                      L.DomEvent.stopPropagation(e);
+                  });
+              }
+          }).addTo(map);
+
+          function obterNomeImovel(props) {
+              return props.NM_Imovel || props.Name || props.name || props.nome || 'Imóvel sem nome';
+          }
+
+          function obterMatriculaImovel(props) {
+              return props.Matricula || props.matricula || props.Matr__cula || 'Sem matrícula';
+          }
+
+          function obterCamposPesquisa(props) {
+              return [
+                  { chave: 'Nome', valor: props.NM_Imovel || props.Name || props.name || props.nome || '' },
+                  { chave: 'Matrícula', valor: props.Matricula || props.matricula || props.Matr__cula || '' }
+              ];
+          }
+
+          function buscarCamadasPorTermo(termo, limite) {
+              var resultados = [];
+              var termoNormalizado = normalizarTextoBusca(termo);
+
+              if (!termoNormalizado) {
+                  return resultados;
+              }
+
+              areaLayer.eachLayer(function(layer) {
+                  var props = (layer.feature && layer.feature.properties) ? layer.feature.properties : {};
+                  var camposPesquisa = obterCamposPesquisa(props);
+
+                  for (var i = 0; i < camposPesquisa.length; i++) {
+                      var chave = camposPesquisa[i].chave;
+                      var valor = camposPesquisa[i].valor;
+                      if (valor === null || valor === undefined) continue;
+
+                      var valorTexto = normalizarTextoBusca(valor);
+                      if (valorTexto.indexOf(termoNormalizado) !== -1) {
+                          resultados.push({
+                              layer: layer,
+                              nome: obterNomeImovel(props),
+                              chave: chave,
+                              valor: String(valor)
+                          });
+                          break;
+                      }
+                  }
+              });
+
+              return typeof limite === 'number' ? resultados.slice(0, limite) : resultados;
+          }
+
+          function selecionarResultado(layer, textoInput) {
+              if (mapSearchInput && textoInput) {
+                  mapSearchInput.value = textoInput;
+              }
+
+              if (mapSearchResults) {
+                  mapSearchResults.classList.remove('show');
+                  mapSearchResults.innerHTML = '';
+              }
+
+              if (layer.getBounds && layer.getBounds().isValid()) {
+                  map.flyToBounds(layer.getBounds(), {
+                      padding: [24, 24],
+                      duration: 1.1,
+                      easeLinearity: 0.25,
+                      maxZoom: 17
+                  });
+              }
+
+              layer.fire('click');
+          }
+
+          function renderSugestoes() {
+              if (!mapSearchInput || !mapSearchResults) return;
+
+              var termoBruto = mapSearchInput.value || '';
+              var termo = normalizarTextoBusca(termoBruto);
+
+              mapSearchResults.innerHTML = '';
+              mapSearchResults.classList.remove('show');
+
+              if (!termo) return;
+
+              var sugestoes = buscarCamadasPorTermo(termo, 8);
+              if (!sugestoes.length) return;
+
+              sugestoes.forEach(function(item) {
+                  var li = document.createElement('li');
+                  li.innerHTML = '<span class="map-search-result-name">' + item.nome + '</span>'
+                      + '<span class="map-search-result-meta">Matrícula: ' + obterMatriculaImovel(item.layer.feature && item.layer.feature.properties ? item.layer.feature.properties : {}) + '</span>';
+                  li.addEventListener('click', function() {
+                      selecionarResultado(item.layer, item.nome);
+                  });
+                  mapSearchResults.appendChild(li);
+              });
+
+              mapSearchResults.classList.add('show');
+          }
+
+          function pesquisarArea() {
+              var termo = normalizarTextoBusca(mapSearchInput && mapSearchInput.value ? mapSearchInput.value : '');
+              if (!termo) return;
+
+              var resultados = buscarCamadasPorTermo(termo, 1);
+              if (!resultados.length) {
+                  alert('Nenhuma área encontrada para: ' + (mapSearchInput ? mapSearchInput.value : termo));
+                  return;
+              }
+
+              selecionarResultado(resultados[0].layer, resultados[0].nome);
+          }
+
+          if (mapSearchBtn && mapSearchInput) {
+              mapSearchBtn.addEventListener('click', pesquisarArea);
+              mapSearchInput.addEventListener('input', renderSugestoes);
+              mapSearchInput.addEventListener('keydown', function(event) {
+                  if (event.key === 'Enter') {
+                      event.preventDefault();
+                      pesquisarArea();
+                  }
+              });
+
+              document.addEventListener('click', function(event) {
+                  if (!mapSearchResults) return;
+
+                  var clicouInput = mapSearchInput && mapSearchInput.contains(event.target);
+                  var clicouLista = mapSearchResults.contains(event.target);
+                  if (!clicouInput && !clicouLista) {
+                      mapSearchResults.classList.remove('show');
+                  }
+              });
+          }
+
+          // Clique fora da camada fecha o painel
+          map.on('click', function(e) {
+              var painel = document.getElementById("painel");
+              painel.classList.remove("ativo");
+              painel.classList.add("inativo");
+          });
+
+          // Adicionar ao controle de camadas
+          layerControl.addOverlay(areaLayer, "Área");
+
+          function adicionarTituloGrupo(selector, titulo) {
+              var grupo = document.querySelector(selector);
+              if (!grupo) return;
+
+              var existente = grupo.querySelector('.layer-group-title');
+              if (existente) return;
+
+              var el = document.createElement('div');
+              el.className = 'layer-group-title';
+              el.innerText = titulo;
+              grupo.prepend(el);
+          }
+
+          setTimeout(function() {
+              adicionarTituloGrupo('.leaflet-control-layers-base', 'Visualizacao');
+              adicionarTituloGrupo('.leaflet-control-layers-overlays', 'Camadas');
+          }, 0);
+
+          if (areaLayer.getBounds && !areaLayer.getBounds().isValid()) {
+              console.warn('GeoJSON não tem bounds válidos.');
+          } else if (areaLayer.getBounds) {
+              map.fitBounds(areaLayer.getBounds(), {
+                  padding: [36, 36]
+              });
+              map.setZoom(Math.max(3, map.getZoom() - 1));
+          }
+      })
+      .catch(error => {
+          console.error('Erro ao carregar teste.geojson:', error);
+          alert('Erro ao carregar teste.geojson:\n' + (error.message || error));
+      });
+
+}
+</script>
+
+</body>
+</html>
