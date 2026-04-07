@@ -17,23 +17,23 @@ PAGINAS_PRINCIPAIS = ('index.html', 'gestores.html')
 USUARIOS = {
     'caio': {
         'salt': '4685401b3ca48700f9b2277665cf7b34',
-        'hash': '1c64c23fabd91d791616e77c728cf9595649fec16d4ecbc9da420e72f2db1f7a'
+        'hash': '1b9813bddee161288d322aca92ddeea81672f602c810ddffe70fb1aadab69e10'
     },
     'claudia': {
         'salt': '4288a86c07ba1defe8cf373602de790e',
-        'hash': '4d6ac3ecb3c2dae5923dd925a9456b642966ce4b0dc930fa0d774bd1fb9c3a18'
+        'hash': '036d2ee70f77d39c314087b199f6c8350366e94cb862165902bfb0d95226f8c0'
     },
     'michele': {
         'salt': 'e053357dc3acfdcbad3d20136fb076eb',
-        'hash': '7030c3d80e98eb91e70fb477afe74d431305afd6d976c82109a28758e572479e'
+        'hash': '5542a6359c22ed0d77623b2699f53fa16b817c0c8c5b42e3474b9260f7a47ffc'
     },
     'melissa': {
         'salt': '0186d12aeae88bc9186595d558679136',
-        'hash': 'e36ddf36d43344caa25ddc538263b95b2b9edac5eacd575c6259cd2f71a0bbcd'
+        'hash': 'c11d16738320e2657c434edfe547e09a8c7455c0c08fdfa8dee15cbed36303e2'
     },
     'roger': {
         'salt': '4a5924dd83eafc8dc7196cc66adad324',
-        'hash': '34becc0175342fc59a25c6d1a4769b01df7df016a373f82a4bf69cd979623e50'
+        'hash': '619473d8afb78c69178f94a04c00190c3c6c1597a7beb0a9427ad195d73186c8'
     }
 }
 
@@ -225,6 +225,12 @@ def servir_arquivo(filename):
         abort(404)
 
     return send_from_directory(BASE_DIR, caminho_normalizado)
+
+
+if __name__ == '__main__':
+    host = os.environ.get('HOST', '127.0.0.1')
+    port = int(os.environ.get('PORT', '5000'))
+    app.run(host=host, port=port, debug=False)
 
 
 if __name__ == '__main__':
